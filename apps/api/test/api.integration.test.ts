@@ -163,10 +163,58 @@ describe('API integration', () => {
     const result = await orchestrator.handleEmployeeMessage({
       employeeId: IDS.ana,
       conversationId: conv!.id,
-      content: 'Qual o status do meu chamado INC-20311?',
+      content: 'Qual o status do meu chamado?',
     });
     expect(provider.callCount).toBeGreaterThan(0);
     expect(result.events.some((e) => e.tool === 'list_my_tickets')).toBe(true);
+    expect(result.agentMessage?.content.toLowerCase()).toMatch(/chamados abertos/);
+    expect(result.agentMessage?.content.toLowerCase()).toMatch(/sobre qual/);
+  });
+
+  it('consulta flow: status → open list → select INC-20311 inspect + SLA overdue', async () => {
+    const db = createDb();
+    const gateway = TicketGateway.withDb(db);
+    const provider = new ScriptedLlmProvider();
+    const orchestrator = new AgentOrchestrator(gateway, new PolicyEngine(), new UsageGuard());
+    orchestrator.setProvider(provider);
+
+    const [conv] = await db
+      .insert(conversations)
+      .values({ employeeId: IDS.ana, status: 'with_agent', employeeMessageCount: 0 })
+      .returning();
+
+    const listTurn = await orchestrator.handleEmployeeMessage({
+      employeeId: IDS.ana,
+      conversationId: conv!.id,
+      content: 'Qual o status do meu chamado?',
+    });
+    expect(listTurn.events.some((e) => e.tool === 'list_my_tickets')).toBe(true);
+
+    const owned = await gateway.listOwned(IDS.ana);
+    const openNumbers = owned.filter((t) => t.status !== 'resolved').map((t) => t.number);
+    expect(openNumbers).toEqual(expect.arrayContaining(['INC-20298', 'INC-20311', 'REQ-10442']));
+    expect(openNumbers).not.toContain('INC-20400');
+    expect(openNumbers).not.toContain('INC-19990');
+    expect(openNumbers.length).toBeGreaterThanOrEqual(3);
+
+    const selectTurn = await orchestrator.handleEmployeeMessage({
+      employeeId: IDS.ana,
+      conversationId: conv!.id,
+      content: 'INC-20311 · Notebook lento após atualização do Windows',
+    });
+
+    expect(selectTurn.events.some((e) => e.tool === 'get_ticket' && e.result === 'INC-20311')).toBe(
+      true,
+    );
+    expect(
+      selectTurn.events.some((e) => e.rule === 'ticket.inspect' && e.result === 'INC-20311'),
+    ).toBe(true);
+    expect(
+      selectTurn.events.some((e) => e.rule === 'sla.compute_due' && e.result === 'overdue'),
+    ).toBe(true);
+    expect(selectTurn.agentMessage?.content.toLowerCase()).toMatch(
+      /sem atualização|chame um analista|prazo/,
+    );
   });
 
   it('accepts demo login for Ana with any non-empty password', async () => {
@@ -357,6 +405,62 @@ describe('API integration', () => {
     );
     expect(toolOks.length).toBeLessThanOrEqual(4);
     expect(result.events.some((event) => event.rule === 'usage.max_tool_steps')).toBe(true);
+  });
+
+  it('scripted VPN 809 flow asks impact then prepares HITL draft', async () => {
+    const db = createDb();
+    const gateway = TicketGateway.withDb(db);
+    const provider = new ScriptedLlmProvider();
+    const orchestrator = new AgentOrchestrator(gateway, new PolicyEngine(), new UsageGuard());
+    orchestrator.setProvider(provider);
+
+    const [conv] = await db
+      .insert(conversations)
+      .values({ employeeId: IDS.ana, status: 'with_agent', employeeMessageCount: 0 })
+      .returning();
+
+    const intake = await orchestrator.handleEmployeeMessage({
+      employeeId: IDS.ana,
+      conversationId: conv!.id,
+      content: 'Meu notebook não conecta na VPN corporativa, erro 809 no Windows 11.',
+    });
+
+    expect(intake.events.some((event) => event.tool === 'list_my_tickets' && event.result === 'ok')).toBe(
+      true,
+    );
+    expect(intake.events.some((event) => event.tool === 'search_help' && event.result === 'ok')).toBe(
+      true,
+    );
+    expect(intake.agentMessage?.content.toLowerCase()).toContain('quem está sendo afetado');
+    expect(intake.draft).toBeNull();
+
+    const draftTurn = await orchestrator.handleEmployeeMessage({
+      employeeId: IDS.ana,
+      conversationId: conv!.id,
+      content: 'Só eu. Tenho reunião importante com o cliente às 14h.',
+    });
+
+    expect(draftTurn.events.some((event) => event.tool === 'prepare_draft')).toBe(true);
+    expect(draftTurn.events.some((event) => event.rule?.includes('priority'))).toBe(true);
+    expect(draftTurn.events.some((event) => event.rule === 'sla.compute_due')).toBe(true);
+    expect(draftTurn.draft?.status).toBe('pending');
+    expect(draftTurn.draft?.payload['affectedScope']).toBe('self');
+    expect(draftTurn.draft?.payload['sameDayCommitment']).toBe(true);
+    expect(draftTurn.draft?.payload['priority']).toBe('high');
+    expect(typeof draftTurn.draft?.payload['dueAt']).toBe('string');
+
+    const beforeCount = (await db.select().from(tickets)).length;
+    const confirmed = await orchestrator.confirmDraft({
+      employeeId: IDS.ana,
+      conversationId: conv!.id,
+      draftId: draftTurn.draft!.id,
+      version: draftTurn.draft!.version,
+      confirm: true,
+    });
+    expect(confirmed.ok).toBe(true);
+    expect(confirmed.mutation).toBeTruthy();
+    const afterCount = (await db.select().from(tickets)).length;
+    expect(afterCount).toBe(beforeCount + 1);
   });
 
   it('confirming the same draft twice does not create a second ticket', async () => {

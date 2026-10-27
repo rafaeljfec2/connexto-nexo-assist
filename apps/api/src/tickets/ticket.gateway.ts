@@ -71,6 +71,20 @@ export class TicketGateway {
     return ticket;
   }
 
+  async findOwnedByNumberOrId(employeeId: string, numberOrId: string) {
+    const needle = numberOrId.trim();
+    if (!needle) {
+      return null;
+    }
+    const owned = await this.listOwned(employeeId);
+    return (
+      owned.find(
+        (ticket) =>
+          ticket.id === needle || ticket.number.toLowerCase() === needle.toLowerCase(),
+      ) ?? null
+    );
+  }
+
   async getHistory(ticketId: string, employeeId: string) {
     await this.getOwned(ticketId, employeeId);
     return this.db.select().from(ticketHistory).where(eq(ticketHistory.ticketId, ticketId));

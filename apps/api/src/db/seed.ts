@@ -1,6 +1,9 @@
 import { eq } from 'drizzle-orm';
 import { computeDueAt } from '@nexo-assist/domain';
+import { EnvConfig } from '../config/env.config';
 import { closeDb, createDb } from './client';
+
+EnvConfig.getInstance().load();
 import {
   conversations,
   helpArticles,
@@ -11,7 +14,7 @@ import {
   users,
 } from './schema';
 
-const SEED_ID = 'nexo-assist-demo-v1';
+const SEED_ID = 'nexo-assist-demo-v2';
 
 const IDS = {
   ana: 'a1111111-1111-4111-8111-111111111111',
@@ -144,6 +147,10 @@ export async function runSeed(now = new Date()): Promise<void> {
   const resolvedIn = new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000);
   const resolvedOut = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000);
 
+  // Prototype Screen 2 anchors: opened ~11 days ago, last update 5 days ago → "há 5 dias".
+  const openedElevenDaysAgo = new Date(now.getTime() - 11 * 24 * 60 * 60 * 1000);
+  const updatedFiveDaysAgo = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000);
+
   await db.insert(tickets).values([
     {
       id: IDS.inc20311,
@@ -151,13 +158,16 @@ export async function runSeed(now = new Date()): Promise<void> {
       employeeId: IDS.ana,
       type: 'incident',
       category: 'hardware',
-      title: 'Notebook não liga',
-      description: 'Meu notebook Dell não inicia após a atualização de sexta-feira.',
+      title: 'Notebook lento após atualização do Windows',
+      description:
+        'Lentidão geral desde a atualização de 15/10. Reiniciar e rodar o diagnóstico da central não resolveu.',
       errorCode: null,
       priority: 'medium',
       status: 'waiting_analyst',
       dueAt: overdueDue,
       resolvedAt: null,
+      createdAt: openedElevenDaysAgo,
+      updatedAt: updatedFiveDaysAgo,
     },
     {
       id: IDS.inc20298,
@@ -165,7 +175,7 @@ export async function runSeed(now = new Date()): Promise<void> {
       employeeId: IDS.ana,
       type: 'incident',
       category: 'access',
-      title: 'Sem acesso ao SharePoint',
+      title: 'Acesso à pasta Financeiro no SharePoint',
       description: 'Não consigo abrir a biblioteca do time de Operações.',
       errorCode: null,
       priority: 'medium',
@@ -179,7 +189,7 @@ export async function runSeed(now = new Date()): Promise<void> {
       employeeId: IDS.ana,
       type: 'request',
       category: 'hardware',
-      title: 'Segundo monitor',
+      title: 'Segundo monitor para home office',
       description: 'Solicitação de segundo monitor para home office.',
       errorCode: null,
       priority: 'low',

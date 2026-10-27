@@ -44,7 +44,7 @@ Without `OPENAI_API_KEY`, set `LLM_PROVIDER=scripted` in `.env` so the chat uses
 
 1. Session resolves the employee; client-supplied user ids are ignored.
 2. `UsageGuard` enforces 30 employee messages / conversation, 4000 chars, one in-flight execution (atomic `busyUntil` claim), max 4 tool steps, last-10-message context, 20s provider timeout, 600 max output tokens. An open `waiting_analyst` / `with_analyst` conversation is reused — the API never opens a fresh `with_agent` thread to bypass pause or the message budget.
-3. The in-process Mastra-shaped runtime may call only `search_help`, `list_my_tickets`, and `prepare_draft`.
+3. The in-process Mastra-shaped runtime may call only `search_help`, `list_my_tickets`, `get_ticket`, and `prepare_draft`.
 4. `@nexo-assist/domain` applies Annex A: priority, business-hour SLA (`America/Sao_Paulo`), duplicity thresholds, reopen window (168h inclusive), and draft confirmation phrases.
 5. Mutations go through `TicketGateway` with `operationId` idempotency (create runs in a DB transaction). Create / update / reopen / transfer are never model tools.
 6. Human handoff requires an explicit phrase (e.g. “quero falar com um analista”) or a critical-priority policy decision — not a bare “analista” substring.
