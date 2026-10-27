@@ -17,8 +17,8 @@ export function AnalystShell({ user, badgeCount = 0, children }: AnalystShellPro
   const router = useRouter();
 
   return (
-    <div className="flex min-h-screen bg-paper">
-      <aside className="flex w-16 shrink-0 flex-col items-center gap-1.5 bg-desk py-4">
+    <div className="flex h-dvh max-h-dvh overflow-hidden bg-paper">
+      <aside className="flex h-full w-16 shrink-0 flex-col items-center gap-1.5 overflow-hidden border-r border-rule bg-desk py-4">
         <div className="mb-2 flex h-10 w-10 items-center justify-center">
           <Logo size={22} showWordmark={false} />
         </div>
@@ -46,7 +46,7 @@ export function AnalystShell({ user, badgeCount = 0, children }: AnalystShellPro
           </button>
         </div>
       </aside>
-      <div className="flex min-w-0 flex-1">{children}</div>
+      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">{children}</div>
     </div>
   );
 }

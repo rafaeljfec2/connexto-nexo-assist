@@ -132,3 +132,87 @@ export function CheckIcon(props: IconProps) {
     </svg>
   );
 }
+
+export function CheckCheckIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M18 6 7 17l-5-5" />
+      <path d="m22 10-7.5 7.5L13 16" />
+    </svg>
+  );
+}
+
+export function XIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M18 6 6 18" />
+      <path d="m6 6 12 12" />
+    </svg>
+  );
+}
+
+export function EllipsisVerticalIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <circle cx="12" cy="5" r="1" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="19" r="1" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+export function BotIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M12 8V4H8" />
+      <rect width="16" height="12" x="4" y="8" rx="2" />
+      <path d="M2 14h2" />
+      <path d="M20 14h2" />
+      <path d="M15 13v2" />
+      <path d="M9 13v2" />
+    </svg>
+  );
+}
+
+export function HandIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M18 11V6a2 2 0 0 0-2-2 2 2 0 0 0-2 2" />
+      <path d="M14 10V4a2 2 0 0 0-2-2 2 2 0 0 0-2 2v2" />
+      <path d="M10 10.5V6a2 2 0 0 0-2-2 2 2 0 0 0-2 2v8" />
+      <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" />
+    </svg>
+  );
+}
+
+export function HeadsetIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M3 11v3a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-2a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2Z" />
+      <path d="M21 11v3a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-2a2 2 0 0 1 2-2h1a2 2 0 0 1 2 2Z" />
+      <path d="M3.2 11a8.8 8.8 0 0 1 17.6 0" />
+      <path d="M10 19h4" />
+      <path d="M12 19v2" />
+    </svg>
+  );
+}
+
+export function ArrowRightLeftIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="m16 3 4 4-4 4" />
+      <path d="M20 7H4" />
+      <path d="m8 21-4-4 4-4" />
+      <path d="M4 17h16" />
+    </svg>
+  );
+}
+
+export function ArrowUpRightIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M7 7h10v10" />
+      <path d="M7 17 17 7" />
+    </svg>
+  );
+}
