@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   buildOverdueConsultaPrompt,
@@ -29,7 +29,9 @@ import { StatusPill } from '@/components/StatusPill';
 import { OptionChips } from '@/components/OptionChips';
 import { TicketCard } from '@/components/TicketCard';
 import { TicketPickerList } from '@/components/TicketPickerList';
-import { ArrowUpIcon } from '@/components/icons';
+import { ArrowUpIcon, ChevronDownIcon } from '@/components/icons';
+
+const NEAR_BOTTOM_PX = 100;
 
 type TicketRow = {
   id: string;
@@ -128,6 +130,41 @@ export default function ChatPage() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [turnEvents, setTurnEvents] = useState<Record<string, ExecutionEvent[]>>({});
+  const [showNewMessageCue, setShowNewMessageCue] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const threadContentRef = useRef<HTMLDivElement>(null);
+  const nearBottomRef = useRef(true);
+  const stickToBottomRef = useRef(true);
+  const prevMessageCountRef = useRef(0);
+  const prevScrollHeightRef = useRef(0);
+
+  function isNearBottom(el: HTMLDivElement): boolean {
+    return el.scrollHeight - el.scrollTop - el.clientHeight <= NEAR_BOTTOM_PX;
+  }
+
+  function scrollToBottom(behavior: ScrollBehavior = 'smooth') {
+    const el = scrollRef.current;
+    if (!el) {
+      return;
+    }
+    el.scrollTo({ top: el.scrollHeight, behavior });
+    nearBottomRef.current = true;
+    stickToBottomRef.current = true;
+    setShowNewMessageCue(false);
+  }
+
+  function onThreadScroll() {
+    const el = scrollRef.current;
+    if (!el) {
+      return;
+    }
+    const near = isNearBottom(el);
+    nearBottomRef.current = near;
+    stickToBottomRef.current = near;
+    if (near) {
+      setShowNewMessageCue(false);
+    }
+  }
 
   useEffect(() => {
     void (async () => {
@@ -167,6 +204,84 @@ export default function ChatPage() {
     return status === 'waiting_analyst' || status === 'with_analyst' || status === 'closed';
   }, [payload]);
 
+  const threadFingerprint = useMemo(() => {
+    if (!payload) {
+      return 'empty';
+    }
+    const lastMessage = payload.messages.at(-1);
+    const lastEvent = payload.events.at(-1);
+    return [
+      payload.messages.length,
+      lastMessage?.id ?? '',
+      payload.draft?.id ?? '',
+      lastEvent?.executionId ?? '',
+      tickets.length,
+      sending ? 'sending' : 'idle',
+    ].join('|');
+  }, [payload, sending, tickets.length]);
+
+  // Keep the viewport glued to the bottom while stick/near-bottom; otherwise cue
+  // when the thread grows (messages, ticket list, draft card, etc.).
+  useEffect(() => {
+    if (loading) {
+      return;
+    }
+    const scroller = scrollRef.current;
+    const content = threadContentRef.current;
+    if (!scroller || !content) {
+      return;
+    }
+
+    prevScrollHeightRef.current = scroller.scrollHeight;
+
+    const syncToGrowth = () => {
+      const nextHeight = scroller.scrollHeight;
+      const grew = nextHeight > prevScrollHeightRef.current + 1;
+      prevScrollHeightRef.current = nextHeight;
+      if (!grew) {
+        return;
+      }
+      if (stickToBottomRef.current || nearBottomRef.current) {
+        scroller.scrollTop = scroller.scrollHeight;
+        nearBottomRef.current = true;
+        stickToBottomRef.current = true;
+        setShowNewMessageCue(false);
+        return;
+      }
+      setShowNewMessageCue(true);
+    };
+
+    const observer = new ResizeObserver(() => {
+      syncToGrowth();
+    });
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, [loading, user]);
+
+  useEffect(() => {
+    if (loading || !payload) {
+      return;
+    }
+    const messageCount = payload.messages.length;
+    const previousCount = prevMessageCountRef.current;
+    const grew = messageCount > previousCount;
+    prevMessageCountRef.current = messageCount;
+
+    const shouldStick = stickToBottomRef.current || nearBottomRef.current;
+    if (shouldStick) {
+      const behavior: ScrollBehavior =
+        previousCount === 0 ? 'auto' : 'smooth';
+      const frame = window.requestAnimationFrame(() => {
+        scrollToBottom(behavior);
+      });
+      return () => window.cancelAnimationFrame(frame);
+    }
+
+    if (grew) {
+      setShowNewMessageCue(true);
+    }
+  }, [threadFingerprint, loading, payload]);
+
   async function refresh() {
     const conversation = await api.currentConversation();
     setPayload(conversation);
@@ -186,6 +301,8 @@ export default function ChatPage() {
     if (!content.trim() || sending || paused) {
       return;
     }
+    stickToBottomRef.current = true;
+    setShowNewMessageCue(false);
     setSending(true);
     setError(null);
     setInput('');
@@ -215,6 +332,8 @@ export default function ChatPage() {
     if (!payload?.draft) {
       return;
     }
+    stickToBottomRef.current = true;
+    setShowNewMessageCue(false);
     setSending(true);
     try {
       await api.confirmDraft(payload.draft.id, payload.draft.version, confirm);
@@ -304,8 +423,13 @@ export default function ChatPage() {
       }
     >
       <div className="flex h-full min-h-0 flex-1 flex-col">
-        <div className="mx-auto flex h-full min-h-0 w-full max-w-4xl flex-1 flex-col px-6 pt-7 lg:px-12">
-          <div className="scrollbar-none min-h-0 flex-1 space-y-5 overflow-y-auto pb-4">
+        <div className="relative mx-auto flex h-full min-h-0 w-full max-w-4xl flex-1 flex-col px-6 pt-7 lg:px-12">
+          <div
+            ref={scrollRef}
+            onScroll={onThreadScroll}
+            className="scrollbar-none min-h-0 flex-1 overflow-y-auto pb-4"
+          >
+            <div ref={threadContentRef} className="flex min-h-0 flex-col space-y-5">
             {messages.length === 0 ? (
               <p className="text-sm text-ink-3">
                 Nenhuma mensagem ainda. Pergunte sobre VPN, chamados ou abra um novo chamado.
@@ -470,7 +594,20 @@ export default function ChatPage() {
             {sending ? (
               <p className="animate-pulse-soft text-sm text-ink-3">Processando…</p>
             ) : null}
+            </div>
           </div>
+
+          {showNewMessageCue ? (
+            <button
+              type="button"
+              onClick={() => scrollToBottom('smooth')}
+              className="absolute bottom-[92px] left-1/2 z-10 inline-flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-rule bg-paper px-3.5 py-2 text-[13px] font-semibold text-primary-text shadow-[0_8px_24px_rgba(27,36,49,0.14)] animate-rise transition hover:border-primary hover:bg-primary-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+              aria-label="Ir para a nova mensagem"
+            >
+              Nova mensagem
+              <ChevronDownIcon width={14} height={14} />
+            </button>
+          ) : null}
 
           {error ? (
             <p className="mb-3 shrink-0 rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger-text">
