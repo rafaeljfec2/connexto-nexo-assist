@@ -239,7 +239,7 @@ export default function ChatPage() {
     >
       <div className="flex h-full min-h-0 flex-1 flex-col">
         <div className="mx-auto flex h-full min-h-0 w-full max-w-3xl flex-1 flex-col px-6 pt-7 lg:px-12">
-          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto pb-4">
+          <div className="scrollbar-none min-h-0 flex-1 space-y-5 overflow-y-auto pb-4">
             {messages.length === 0 ? (
               <p className="text-sm text-ink-3">
                 Nenhuma mensagem ainda. Pergunte sobre VPN, chamados ou abra um novo chamado.
