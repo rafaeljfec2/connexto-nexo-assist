@@ -10,15 +10,18 @@ test.describe('Nexo Assist smoke', () => {
     await expect(page.getByText('Seu problema de TI, resolvido em uma conversa.')).toBeVisible();
     await expect(page.getByText('8 s')).toBeVisible();
     await expect(page.getByText('72%')).toBeVisible();
+    await expect(page.getByText('analistas online agora')).toBeVisible();
+    await expect(page.getByText('INC-20517')).toBeVisible();
     await expect(page.getByText('Ligue no ramal 4000')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Entrar →' })).toBeVisible();
+    await expect(page.getByRole('checkbox', { name: 'Manter conectado neste computador' })).toBeChecked();
+    await expect(page.getByRole('button', { name: 'Entrar' })).toBeVisible();
   });
 
   test('employee can open chat after login', async ({ page }) => {
     await page.goto('/login');
     await page.getByRole('textbox', { name: 'E-mail corporativo' }).fill('ana.souza@nexo.com.br');
     await page.locator('#password').fill('demo');
-    await page.getByRole('button', { name: 'Entrar →' }).click();
+    await page.getByRole('button', { name: 'Entrar' }).click();
     await expect(page).toHaveURL(/\/chat/);
     await expect(page.getByText('Service desk de TI')).toBeVisible();
     await expect(page.getByRole('link', { name: 'Atendimento' })).toBeVisible();
@@ -29,7 +32,7 @@ test.describe('Nexo Assist smoke', () => {
     await page.goto('/login');
     await page.getByRole('textbox', { name: 'E-mail corporativo' }).fill('ana.souza@nexo.com.br');
     await page.locator('#password').fill('demo');
-    await page.getByRole('button', { name: 'Entrar →' }).click();
+    await page.getByRole('button', { name: 'Entrar' }).click();
     await expect(page).toHaveURL(/\/chat/);
     await page.getByRole('link', { name: 'Meu perfil' }).click();
     await expect(page).toHaveURL(/\/profile/);
@@ -43,7 +46,7 @@ test.describe('Nexo Assist smoke', () => {
     await page.goto('/login');
     await page.getByRole('textbox', { name: 'E-mail corporativo' }).fill('rafael.lima@nexo.com.br');
     await page.locator('#password').fill('demo');
-    await page.getByRole('button', { name: 'Entrar →' }).click();
+    await page.getByRole('button', { name: 'Entrar' }).click();
     await expect(page).toHaveURL(/\/console/);
     await expect(page.getByRole('heading', { name: 'Conversas' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Selecione uma conversa' })).toBeVisible();
@@ -68,7 +71,7 @@ test.describe('Nexo Assist smoke', () => {
     await page.goto('/login');
     await page.getByRole('textbox', { name: 'E-mail corporativo' }).fill('rafael.lima@nexo.com.br');
     await page.locator('#password').fill('demo');
-    await page.getByRole('button', { name: 'Entrar →' }).click();
+    await page.getByRole('button', { name: 'Entrar' }).click();
     await expect(page).toHaveURL(/\/console/);
 
     await page.getByRole('button', { name: 'Para você' }).click();
@@ -108,7 +111,7 @@ test.describe('Nexo Assist smoke', () => {
     await page.goto('/login');
     await page.getByRole('textbox', { name: 'E-mail corporativo' }).fill('rafael.lima@nexo.com.br');
     await page.locator('#password').fill('demo');
-    await page.getByRole('button', { name: 'Entrar →' }).click();
+    await page.getByRole('button', { name: 'Entrar' }).click();
     await expect(page).toHaveURL(/\/console/);
 
     await page.getByRole('button', { name: 'Para você' }).click();
@@ -140,7 +143,7 @@ test.describe('Nexo Assist smoke', () => {
     await page.goto('/login');
     await page.getByRole('textbox', { name: 'E-mail corporativo' }).fill('rafael.lima@nexo.com.br');
     await page.locator('#password').fill('demo');
-    await page.getByRole('button', { name: 'Entrar →' }).click();
+    await page.getByRole('button', { name: 'Entrar' }).click();
     await expect(page).toHaveURL(/\/console/);
 
     await page.getByRole('button', { name: 'Para você' }).click();
@@ -173,7 +176,7 @@ test.describe('Nexo Assist smoke', () => {
     await page.goto('/login');
     await page.getByRole('textbox', { name: 'E-mail corporativo' }).fill('ana.souza@nexo.com.br');
     await page.locator('#password').fill('demo');
-    await page.getByRole('button', { name: 'Entrar →' }).click();
+    await page.getByRole('button', { name: 'Entrar' }).click();
     await expect(page).toHaveURL(/\/chat/);
     await expect(page.getByText('Assistente online')).toBeVisible();
 

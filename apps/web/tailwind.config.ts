@@ -67,6 +67,7 @@ const config: Config = {
       boxShadow: {
         panel: '0 1px 2px rgba(27, 36, 49, 0.05), 0 6px 18px rgba(27, 36, 49, 0.04)',
         input: '0 1px 2px rgba(27, 36, 49, 0.04)',
+        cta: '0 1px 2px rgba(0, 98, 196, 0.2), 0 6px 16px rgba(0, 98, 196, 0.15)',
       },
     },
   },
