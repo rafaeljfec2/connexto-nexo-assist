@@ -48,6 +48,111 @@ test.describe('Nexo Assist smoke', () => {
     await expect(page.getByRole('heading', { name: 'Conversas' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Selecione uma conversa' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Para você' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Todas' })).toBeVisible();
+  });
+
+  test('analyst claims Ana waiting conversation from Para você', async ({ page }) => {
+    const { execFileSync } = await import('node:child_process');
+    execFileSync(
+      'psql',
+      [
+        'postgres://nexo:nexo@localhost:5432/nexo',
+        '-v',
+        'ON_ERROR_STOP=1',
+        '-c',
+        "UPDATE conversations SET status = 'waiting_analyst', analyst_id = NULL, summary = 'Está parado há 5 dias. Quero falar com um analista. · INC-20311' WHERE id = 'c5555555-5555-4555-8555-555555555555';",
+      ],
+      { stdio: 'pipe' },
+    );
+
+    await page.goto('/login');
+    await page.getByRole('textbox', { name: 'E-mail corporativo' }).fill('rafael.lima@nexo.com.br');
+    await page.locator('#password').fill('demo');
+    await page.getByRole('button', { name: 'Entrar →' }).click();
+    await expect(page).toHaveURL(/\/console/);
+
+    await page.getByRole('button', { name: 'Para você' }).click();
+    await expect(page.getByRole('button', { name: /Ana Souza/i })).toBeVisible();
+    await expect(page.getByText(/Transferida · INC-20311/i).first()).toBeVisible();
+
+    await page.getByRole('button', { name: /Ana Souza/i }).click();
+    await expect(page.getByText('Aguardando atendente')).toBeVisible();
+    await expect(page.getByText(/Ana espera um atendente/i)).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Assumir atendimento' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Devolver ao agent' })).toBeVisible();
+    await expect(page.getByText(/Chamados da Ana/i)).toBeVisible();
+    await expect(page.getByText('Desta conversa')).toBeVisible();
+    await expect(page.getByText('INC-20311').first()).toBeVisible();
+
+    await page.getByRole('button', { name: 'Assumir atendimento' }).click();
+    await expect(page.getByText('Você está atendendo')).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByLabel('Mensagem do analista')).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Devolver ao agent' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Encerrar' })).toBeVisible();
+  });
+
+  test('analyst returns Ana waiting conversation to the agent', async ({ page }) => {
+    const { execFileSync } = await import('node:child_process');
+    execFileSync(
+      'psql',
+      [
+        'postgres://nexo:nexo@localhost:5432/nexo',
+        '-v',
+        'ON_ERROR_STOP=1',
+        '-c',
+        "UPDATE conversations SET status = 'waiting_analyst', analyst_id = NULL, summary = 'Está parado há 5 dias. Quero falar com um analista. · INC-20311' WHERE id = 'c5555555-5555-4555-8555-555555555555';",
+      ],
+      { stdio: 'pipe' },
+    );
+
+    await page.goto('/login');
+    await page.getByRole('textbox', { name: 'E-mail corporativo' }).fill('rafael.lima@nexo.com.br');
+    await page.locator('#password').fill('demo');
+    await page.getByRole('button', { name: 'Entrar →' }).click();
+    await expect(page).toHaveURL(/\/console/);
+
+    await page.getByRole('button', { name: 'Para você' }).click();
+    await page.getByRole('button', { name: /Ana Souza/i }).click();
+    await expect(page.getByRole('button', { name: 'Devolver ao agent' })).toBeVisible();
+    await page.getByRole('button', { name: 'Devolver ao agent' }).click();
+
+    await expect(page.getByText('Atendimento devolvido ao agente.')).toBeVisible({
+      timeout: 10_000,
+    });
+    await expect(page.getByText('Agent atendendo')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Assumir atendimento' })).toHaveCount(0);
+  });
+
+  test('analyst can return after claiming', async ({ page }) => {
+    const { execFileSync } = await import('node:child_process');
+    execFileSync(
+      'psql',
+      [
+        'postgres://nexo:nexo@localhost:5432/nexo',
+        '-v',
+        'ON_ERROR_STOP=1',
+        '-c',
+        "UPDATE conversations SET status = 'waiting_analyst', analyst_id = NULL, summary = 'Está parado há 5 dias. Quero falar com um analista. · INC-20311' WHERE id = 'c5555555-5555-4555-8555-555555555555';",
+      ],
+      { stdio: 'pipe' },
+    );
+
+    await page.goto('/login');
+    await page.getByRole('textbox', { name: 'E-mail corporativo' }).fill('rafael.lima@nexo.com.br');
+    await page.locator('#password').fill('demo');
+    await page.getByRole('button', { name: 'Entrar →' }).click();
+    await expect(page).toHaveURL(/\/console/);
+
+    await page.getByRole('button', { name: 'Para você' }).click();
+    await page.getByRole('button', { name: /Ana Souza/i }).click();
+    await page.getByRole('button', { name: 'Assumir atendimento' }).click();
+    await expect(page.getByText('Você está atendendo')).toBeVisible({ timeout: 10_000 });
+
+    await page.getByRole('button', { name: 'Devolver ao agent' }).click();
+    await expect(page.getByText('Atendimento devolvido ao agente.')).toBeVisible({
+      timeout: 10_000,
+    });
+    await expect(page.getByText('Agent atendendo')).toBeVisible();
   });
 
   test('consulta flow: status → select INC-20311 → overdue actions', async ({ page }) => {

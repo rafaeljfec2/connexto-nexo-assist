@@ -146,6 +146,71 @@ describe('API integration', () => {
     await expect(consoleService.claim(IDS.convWaiting, IDS.bruno)).rejects.toThrow(/claimed/i);
   });
 
+  it('returns a waiting conversation to the agent without claim', async () => {
+    const db = createDb();
+    const consoleService = new ConsoleService();
+    const before = await consoleService.getConversation(IDS.convAna);
+    expect(before.conversation.status).toBe('waiting_analyst');
+    expect(before.tickets.some((ticket) => ticket.number === 'INC-20311' && ticket.lastHistory)).toBe(
+      true,
+    );
+
+    const returned = await consoleService.returnToAgent(IDS.convAna, IDS.rafael);
+    expect(returned.conversation.status).toBe('with_agent');
+    expect(
+      returned.messages.some(
+        (msg) => msg.role === 'system' && msg.content === 'Atendimento devolvido ao agente.',
+      ),
+    ).toBe(true);
+
+    // Restore waiting state for later demo/console flows in the same suite.
+    await db
+      .update(conversations)
+      .set({ status: 'waiting_analyst', analystId: null, updatedAt: new Date() })
+      .where(eq(conversations.id, IDS.convAna));
+  });
+
+  it('claim vs return from waiting does not insert a false return system message', async () => {
+    const db = createDb();
+    const consoleService = new ConsoleService();
+    await db
+      .update(conversations)
+      .set({ status: 'waiting_analyst', analystId: null, updatedAt: new Date() })
+      .where(eq(conversations.id, IDS.convAna));
+
+    const before = await consoleService.getConversation(IDS.convAna);
+    const beforeReturnMsgs = before.messages.filter(
+      (msg) => msg.content === 'Atendimento devolvido ao agente.',
+    ).length;
+
+    await Promise.allSettled([
+      consoleService.claim(IDS.convAna, IDS.rafael),
+      consoleService.returnToAgent(IDS.convAna, IDS.bruno),
+    ]);
+
+    const after = await consoleService.getConversation(IDS.convAna);
+    const afterReturnMsgs = after.messages.filter(
+      (msg) => msg.content === 'Atendimento devolvido ao agente.',
+    ).length;
+
+    if (after.conversation.status === 'with_analyst') {
+      // Claim won: return must not have written a system message.
+      expect(afterReturnMsgs).toBe(beforeReturnMsgs);
+      expect(after.conversation.analystId).toBe(IDS.rafael);
+    } else if (after.conversation.status === 'with_agent') {
+      // Return won: exactly one new return system message.
+      expect(afterReturnMsgs).toBe(beforeReturnMsgs + 1);
+      expect(after.conversation.analystId).toBeNull();
+    } else {
+      throw new Error(`Unexpected status after race: ${after.conversation.status}`);
+    }
+
+    await db
+      .update(conversations)
+      .set({ status: 'waiting_analyst', analystId: null, updatedAt: new Date() })
+      .where(eq(conversations.id, IDS.convAna));
+  });
+
   it('scripted agent can list tickets and expose overdue INC-20311', async () => {
     const db = createDb();
     const provider = new ScriptedLlmProvider();
@@ -250,6 +315,45 @@ describe('API integration', () => {
       }),
     ).rejects.toThrow(/pausado/i);
     expect(provider.callCount).toBe(0);
+  });
+
+  it('stores employee replies during with_analyst without calling the LLM', async () => {
+    const db = createDb();
+    const provider = new ScriptedLlmProvider();
+    const orchestrator = new AgentOrchestrator(
+      TicketGateway.withDb(db),
+      new PolicyEngine(),
+      new UsageGuard(),
+    );
+    orchestrator.setProvider(provider);
+    const [conv] = await db
+      .insert(conversations)
+      .values({
+        employeeId: IDS.ana,
+        status: 'with_analyst',
+        analystId: IDS.rafael,
+        employeeMessageCount: 2,
+      })
+      .returning();
+
+    const result = await orchestrator.handleEmployeeMessage({
+      employeeId: IDS.ana,
+      conversationId: conv!.id,
+      content: 'Recebi, obrigada',
+    });
+
+    expect(result.employeeMessage.content).toBe('Recebi, obrigada');
+    expect(result.agentMessage).toBeNull();
+    expect(result.events).toHaveLength(0);
+    expect(result.employeeMessageCount).toBe(3);
+    expect(provider.callCount).toBe(0);
+
+    const [updated] = await db
+      .select()
+      .from(conversations)
+      .where(eq(conversations.id, conv!.id));
+    expect(updated?.status).toBe('with_analyst');
+    expect(updated?.employeeMessageCount).toBe(3);
   });
 
   it('does not create a fresh with_agent conversation while paused', async () => {
