@@ -13,10 +13,8 @@ body {
 
 body {
   margin: 0;
-  background:
-    radial-gradient(circle at top left, rgba(47, 111, 237, 0.08), transparent 40%),
-    linear-gradient(180deg, #f5f8fc 0%, #e8eef6 100%);
-  color: #0b1f3a;
+  background: #ffffff;
+  color: #1b2431;
 }
 
 @keyframes rise-in {

@@ -3,6 +3,12 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, ApiError, type Message, type User } from '@/lib/api';
+import { AnalystShell } from '@/components/AnalystShell';
+import { Button } from '@/components/Button';
+import { ChatBubble } from '@/components/ChatBubble';
+import { StatusPill } from '@/components/StatusPill';
+import { SearchIcon, SendIcon } from '@/components/icons';
+import { cx, initials } from '@/lib/ui';
 
 type QueueItem = {
   conversation: {
@@ -30,6 +36,24 @@ type Detail = {
   messages: Message[];
   tickets: Array<Record<string, unknown>>;
 };
+
+const avatarColors = ['#DCE9F7', '#F6E3D3', '#E6E1F7', '#DDF0E6', '#F7E1E6', '#E5E8EC', '#FBEFD0'];
+
+function avatarColor(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i += 1) hash = (hash + name.charCodeAt(i) * 17) % 997;
+  return avatarColors[hash % avatarColors.length] ?? '#E5E8EC';
+}
+
+function formatStatus(status: string): string {
+  const map: Record<string, string> = {
+    waiting_analyst: 'Aguardando atendente',
+    with_analyst: 'Em atendimento',
+    with_agent: 'Agent atendendo',
+    closed: 'Encerrada',
+  };
+  return map[status] ?? status.replaceAll('_', ' ');
+}
 
 export default function ConsolePage() {
   const router = useRouter();
@@ -158,16 +182,20 @@ export default function ConsolePage() {
   if (error && !user) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4">
-        <p className="rounded-2xl bg-red-50 px-4 py-3 text-red-700">{error}</p>
+        <p className="rounded-2xl bg-danger-soft px-4 py-3 text-danger-text">{error}</p>
         <button
           type="button"
-          className="text-accent underline"
+          className="text-primary-text underline"
           onClick={() => router.replace('/login')}
         >
           Voltar ao login
         </button>
       </div>
     );
+  }
+
+  if (!user) {
+    return null;
   }
 
   const filtered = queue.filter((item) => {
@@ -180,41 +208,30 @@ export default function ConsolePage() {
     );
   });
 
+  const waitingCount = queue.filter((q) => q.conversation.status === 'waiting_analyst').length;
+  const currentTickets = detail?.tickets ?? [];
+  const claimed = detail?.conversation.status === 'with_analyst';
+  const waiting = detail?.conversation.status === 'waiting_analyst';
+
   return (
-    <div className="min-h-screen">
-      <header className="flex items-center justify-between border-b border-mist-200 bg-white/80 px-6 py-4 backdrop-blur">
-        <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-navy-700/60">Nexo Assist</p>
-          <h1 className="font-display text-2xl text-navy-900">Console do analista</h1>
-        </div>
-        <div className="text-right text-sm">
-          <p>{user?.name}</p>
-          <button
-            type="button"
-            className="text-accent"
-            onClick={async () => {
-              await api.logout();
-              router.replace('/login');
-            }}
-          >
-            Sair
-          </button>
-        </div>
-      </header>
-
-      {error ? (
-        <p className="mx-6 mt-4 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
-      ) : null}
-
-      <div className="grid gap-4 p-4 xl:grid-cols-[320px_1fr_320px]">
-        <section className="rounded-3xl bg-white p-4 shadow-panel">
-          <input
-            className="w-full rounded-xl border border-mist-200 bg-mist-50 px-3 py-2 text-sm"
-            placeholder="Buscar funcionário ou resumo"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <div className="mt-3 flex gap-2">
+    <AnalystShell user={user} badgeCount={waitingCount}>
+      <section className="flex w-[380px] shrink-0 flex-col border-r border-rule">
+        <div className="space-y-3 border-b border-rule px-4 pb-2.5 pt-4">
+          <div className="flex items-center justify-between gap-2">
+            <h1 className="text-xl font-bold text-ink">Conversas</h1>
+            <StatusPill label="Disponível" tone="success" />
+          </div>
+          <label className="flex h-9 items-center gap-2.5 rounded-full bg-desk px-3">
+            <SearchIcon className="text-ink-3" width={15} height={15} />
+            <input
+              className="w-full bg-transparent text-[13.5px] text-ink outline-none placeholder:text-ink-3"
+              placeholder="Pesquisar conversa ou chamado"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              aria-label="Buscar"
+            />
+          </label>
+          <div className="flex flex-wrap gap-1">
             {(
               [
                 ['for_you', 'Para você'],
@@ -229,140 +246,265 @@ export default function ConsolePage() {
                   setFilter(value);
                   void loadQueue(value);
                 }}
-                className={`rounded-full px-3 py-1 text-xs ${
-                  filter === value ? 'bg-navy-900 text-white' : 'bg-mist-100 text-navy-800'
-                }`}
+                className={cx(
+                  'rounded-full px-2.5 py-1.5 text-xs font-medium transition',
+                  filter === value
+                    ? 'bg-primary-soft text-primary-text'
+                    : 'bg-desk text-ink-2 hover:bg-mist-100',
+                )}
               >
                 {label}
               </button>
             ))}
           </div>
-          <ul className="mt-4 space-y-2">
-            {filtered.map((item) => (
+        </div>
+
+        <ul className="flex-1 space-y-0.5 overflow-y-auto px-2 py-2">
+          {filtered.map((item) => {
+            const selected = selectedId === item.conversation.id;
+            const color = avatarColor(item.employeeName);
+            return (
               <li key={item.conversation.id}>
                 <button
                   type="button"
                   onClick={() => void selectConversation(item.conversation.id)}
-                  className={`w-full rounded-2xl border px-3 py-3 text-left ${
-                    selectedId === item.conversation.id
-                      ? 'border-accent bg-accent-soft'
-                      : 'border-mist-200'
-                  }`}
+                  className={cx(
+                    'flex w-full gap-3 rounded-xl p-2.5 text-left transition',
+                    selected ? 'bg-desk' : 'hover:bg-desk/70',
+                  )}
                 >
-                  <p className="font-semibold text-navy-900">{item.employeeName}</p>
-                  <p className="text-xs text-navy-700/70">{item.conversation.status}</p>
-                  <p className="mt-1 line-clamp-2 text-sm text-navy-700">
-                    {item.conversation.summary ?? 'Sem resumo'}
-                  </p>
+                  <div
+                    className="flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-full text-[15.5px] font-semibold"
+                    style={{ backgroundColor: color, color: '#0062C4' }}
+                  >
+                    {initials(item.employeeName)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="truncate font-semibold text-ink">{item.employeeName}</p>
+                      <span className="shrink-0 text-xs font-semibold text-cta">
+                        {item.conversation.employeeMessageCount}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 line-clamp-1 text-[13.5px] text-ink-3">
+                      {item.conversation.summary ?? 'Sem resumo'}
+                    </p>
+                    <p className="mt-1 text-[11.5px] font-medium text-ink-3">
+                      {formatStatus(item.conversation.status)}
+                    </p>
+                  </div>
                 </button>
               </li>
-            ))}
-            {filtered.length === 0 ? (
-              <p className="text-sm text-navy-700/70">Fila vazia para este filtro.</p>
-            ) : null}
-          </ul>
-        </section>
+            );
+          })}
+          {filtered.length === 0 ? (
+            <p className="px-3 py-6 text-sm text-ink-3">Fila vazia para este filtro.</p>
+          ) : null}
+        </ul>
+      </section>
 
-        <section className="rounded-3xl bg-white p-4 shadow-panel">
-          {!detail ? (
-            <p className="text-sm text-navy-700/70">Selecione uma conversa da fila.</p>
-          ) : (
-            <>
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h2 className="font-display text-2xl text-navy-900">{detail.employeeName}</h2>
-                  <p className="text-sm text-navy-700/70">
-                    {detail.employeeEmail} · {detail.employeeArea}
-                  </p>
-                  <p className="mt-2 text-sm">Status: {detail.conversation.status}</p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {detail.conversation.status === 'waiting_analyst' ? (
-                    <button
+      <section className="flex min-w-0 flex-1 flex-col bg-[#EEF1F5]">
+        {error ? (
+          <p className="mx-4 mt-3 rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger-text">
+            {error}
+          </p>
+        ) : null}
+
+        {!detail ? (
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-paper text-2xl font-bold text-cta shadow-panel">
+              N
+            </div>
+            <h2 className="text-lg font-semibold text-ink">Selecione uma conversa</h2>
+            <p className="max-w-sm text-sm text-ink-3">
+              Escolha um item da fila à esquerda para ver o histórico, assumir o atendimento e
+              responder ao funcionário.
+            </p>
+          </div>
+        ) : (
+          <>
+            <header className="flex h-16 items-center gap-3 border-b border-rule bg-paper px-5">
+              <div
+                className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold text-cta"
+                style={{ backgroundColor: avatarColor(detail.employeeName) }}
+              >
+                {initials(detail.employeeName)}
+              </div>
+              <div className="min-w-0 flex-1">
+                <h2 className="truncate font-semibold text-ink">{detail.employeeName}</h2>
+                <p className="truncate text-xs text-ink-3">
+                  {detail.employeeEmail} · {detail.employeeArea}
+                </p>
+              </div>
+              {waiting ? (
+                <StatusPill label="Aguardando atendente" tone="warning" />
+              ) : claimed ? (
+                <StatusPill label="Você está atendendo" tone="primary" />
+              ) : (
+                <StatusPill label={formatStatus(detail.conversation.status)} tone="neutral" />
+              )}
+              {claimed ? (
+                <>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    disabled={busy}
+                    onClick={() => void onReturn()}
+                    className="h-9"
+                  >
+                    Devolver ao agent
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="dangerSoft"
+                    disabled={busy}
+                    onClick={() => void onClose()}
+                    className="h-9"
+                  >
+                    Encerrar atendimento
+                  </Button>
+                </>
+              ) : null}
+            </header>
+
+            <div className="flex-1 space-y-4 overflow-y-auto px-10 py-5">
+              {detail.messages.map((msg) => {
+                const role =
+                  msg.role === 'employee'
+                    ? 'employee'
+                    : msg.role === 'analyst'
+                      ? 'analyst'
+                      : 'agent';
+                return (
+                  <ChatBubble
+                    key={msg.id}
+                    role={role === 'employee' ? 'employee' : role}
+                    align="start"
+                    className="max-w-[75%]"
+                    meta={
+                      role !== 'employee' ? (
+                        <div className="flex items-center gap-1.5 text-[11px]">
+                          <span className="font-semibold text-ink-2">
+                            {role === 'analyst' ? 'Analista' : 'Nexo Assist'}
+                          </span>
+                          {role === 'agent' ? (
+                            <span className="font-semibold text-primary-text">IA</span>
+                          ) : (
+                            <span className="font-semibold text-success-text">Suporte N2</span>
+                          )}
+                        </div>
+                      ) : null
+                    }
+                  >
+                    {msg.content}
+                  </ChatBubble>
+                );
+              })}
+            </div>
+
+            <div className="border-t border-rule bg-paper px-5 py-3">
+              {waiting ? (
+                <div className="space-y-2.5">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[14.5px] font-semibold text-ink">
+                        {detail.employeeName.split(' ')[0]} espera um atendente
+                      </p>
+                      <p className="text-xs text-ink-3">Agent pausado</p>
+                    </div>
+                    <Button
                       type="button"
                       disabled={busy}
                       onClick={() => void onClaim()}
-                      className="rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white"
+                      className="h-9"
                     >
-                      Assumir
-                    </button>
-                  ) : null}
-                  {detail.conversation.status === 'with_analyst' ? (
-                    <>
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => void onReturn()}
-                        className="rounded-xl bg-mist-100 px-4 py-2 text-sm font-semibold"
-                      >
-                        Devolver ao agent
-                      </button>
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => void onClose()}
-                        className="rounded-xl bg-navy-900 px-4 py-2 text-sm font-semibold text-white"
-                      >
-                        Encerrar atendimento
-                      </button>
-                    </>
-                  ) : null}
-                </div>
-              </div>
-
-              <div className="mt-4 max-h-[55vh] space-y-3 overflow-y-auto rounded-2xl bg-mist-50 p-4">
-                {detail.messages.map((msg) => (
-                  <div key={msg.id} className="rounded-2xl bg-white px-3 py-2 text-sm shadow-sm">
-                    <p className="text-[11px] uppercase tracking-wide text-navy-700/50">
-                      {msg.role}
-                    </p>
-                    <p className="mt-1">{msg.content}</p>
+                      Assumir atendimento
+                    </Button>
                   </div>
-                ))}
-              </div>
-
-              {detail.conversation.status === 'with_analyst' ? (
-                <form onSubmit={onSend} className="mt-4 flex gap-2">
+                  <div className="flex h-11 items-center rounded-xl bg-desk px-3.5 text-[14.5px] text-ink-3">
+                    Assuma o atendimento para responder
+                  </div>
+                </div>
+              ) : claimed ? (
+                <form onSubmit={onSend} className="flex items-center gap-3">
                   <input
-                    className="flex-1 rounded-xl border border-mist-200 px-3 py-2 text-sm"
+                    className="h-11 flex-1 rounded-xl bg-desk px-3.5 text-[14.5px] text-ink outline-none placeholder:text-ink-3 focus:bg-paper focus:ring-1 focus:ring-cta"
                     placeholder="Mensagem para o funcionário"
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
+                    aria-label="Mensagem do analista"
                   />
-                  <button
+                  <Button
                     type="submit"
                     disabled={busy || !message.trim()}
-                    className="rounded-xl bg-navy-900 px-4 py-2 text-sm font-semibold text-white"
+                    className="h-11 w-11 rounded-full px-0"
+                    aria-label="Enviar"
                   >
-                    Enviar
-                  </button>
+                    <SendIcon className="text-white" />
+                  </Button>
                 </form>
-              ) : null}
-            </>
-          )}
-        </section>
+              ) : (
+                <p className="text-sm text-ink-3">Esta conversa não está disponível para resposta.</p>
+              )}
+            </div>
+          </>
+        )}
+      </section>
 
-        <section className="rounded-3xl bg-white p-4 shadow-panel">
-          <h3 className="font-display text-lg text-navy-900">Resumo e chamados</h3>
-          <p className="mt-2 text-sm text-navy-700">
-            {detail?.conversation.summary ?? 'Selecione uma conversa para ver o resumo.'}
-          </p>
-          <ul className="mt-4 space-y-2">
-            {(detail?.tickets ?? []).map((ticket) => (
-              <li
-                key={String(ticket['id'])}
-                className="rounded-2xl border border-mist-200 px-3 py-2 text-sm"
-              >
-                <p className="font-semibold">{String(ticket['number'])}</p>
-                <p>{String(ticket['title'])}</p>
-                <p className="text-xs text-navy-700/70">
-                  {String(ticket['status'])} · {String(ticket['priority'])}
-                </p>
-              </li>
-            ))}
-          </ul>
-        </section>
-      </div>
-    </div>
+      <aside className="hidden w-[340px] shrink-0 flex-col border-l border-rule bg-paper xl:flex">
+        <div className="flex h-16 items-center border-b border-rule px-5">
+          <div>
+            <h3 className="font-semibold text-ink">
+              {detail ? `Chamados da ${detail.employeeName.split(' ')[0]}` : 'Chamados'}
+            </h3>
+            <p className="text-xs text-ink-3">
+              {detail
+                ? `${currentTickets.length} vinculados a esta conversa`
+                : 'Nenhuma conversa selecionada'}
+            </p>
+          </div>
+        </div>
+        <div className="flex-1 space-y-6 overflow-y-auto p-5">
+          <div>
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-ink-3">
+              Desta conversa
+            </p>
+            {currentTickets.length === 0 ? (
+              <p className="text-sm text-ink-3">Nenhum chamado vinculado.</p>
+            ) : (
+              <ul className="space-y-3">
+                {currentTickets.map((ticket) => (
+                  <li key={String(ticket['id'])} className="rounded-xl bg-desk p-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-medium text-ink-3">
+                        {String(ticket['number'])}
+                      </span>
+                      <StatusPill
+                        label={formatStatus(String(ticket['status']))}
+                        tone={
+                          String(ticket['status']).includes('wait') ? 'warning' : 'primary'
+                        }
+                      />
+                    </div>
+                    <p className="mt-2 font-semibold text-ink">{String(ticket['title'])}</p>
+                    <p className="mt-1 text-[13.5px] text-ink-3">
+                      {String(ticket['priority'] ?? '')} · {String(ticket['status'])}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          {detail?.conversation.summary ? (
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-3">
+                Resumo
+              </p>
+              <p className="text-sm leading-relaxed text-ink-2">{detail.conversation.summary}</p>
+            </div>
+          ) : null}
+        </div>
+      </aside>
+    </AnalystShell>
   );
 }

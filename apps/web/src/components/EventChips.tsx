@@ -10,7 +10,8 @@ export function EventChips({ events }: { events: ExecutionEvent[] }) {
   }
 
   return (
-    <div className="mb-2 flex flex-wrap gap-2">
+    <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+      <span className="text-xs font-semibold text-ink">Nexo Assist</span>
       {events.map((event) => {
         const label = event.tool ?? event.rule ?? event.intent ?? event.result;
         const isOpen = openId === event.id;
@@ -19,12 +20,12 @@ export function EventChips({ events }: { events: ExecutionEvent[] }) {
             <button
               type="button"
               onClick={() => setOpenId(isOpen ? null : event.id)}
-              className="rounded-full bg-accent-soft px-3 py-1 text-xs font-medium text-navy-800"
+              className="rounded-full bg-desk px-2.5 py-1 text-xs font-normal text-ink-3 transition hover:bg-mist-100"
             >
               {label}
             </button>
             {isOpen ? (
-              <div className="absolute left-0 z-10 mt-2 w-72 rounded-2xl border border-mist-200 bg-white p-3 text-xs shadow-panel">
+              <div className="absolute left-0 z-10 mt-2 w-72 rounded-xl border border-rule bg-paper p-3 text-xs shadow-panel">
                 <p>
                   <strong>Intenção:</strong> {event.intent ?? '—'}
                 </p>

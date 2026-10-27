@@ -10,7 +10,13 @@ import {
   type Message,
   type User,
 } from '@/lib/api';
+import { AppShell } from '@/components/AppShell';
+import { Button } from '@/components/Button';
+import { ChatBubble } from '@/components/ChatBubble';
 import { EventChips } from '@/components/EventChips';
+import { StatusPill } from '@/components/StatusPill';
+import { TicketCard } from '@/components/TicketCard';
+import { SendIcon } from '@/components/icons';
 
 type TicketRow = {
   id: string;
@@ -18,8 +24,30 @@ type TicketRow = {
   title: string;
   status: string;
   priority: string;
+  category: string;
   dueAt: string;
+  createdAt: string;
+  updatedAt: string;
 };
+
+function statusTone(status: string): 'success' | 'warning' | 'danger' | 'neutral' | 'primary' {
+  const value = status.toLowerCase();
+  if (value.includes('resolv') || value.includes('aprov')) return 'success';
+  if (value.includes('progress') || value.includes('andamento')) return 'primary';
+  if (value.includes('wait') || value.includes('aguard')) return 'warning';
+  return 'neutral';
+}
+
+function formatStatus(status: string): string {
+  const map: Record<string, string> = {
+    waiting_analyst: 'Aguardando analista',
+    in_progress: 'Em andamento',
+    approved: 'Aprovado',
+    resolved: 'Resolvido',
+    open: 'Aberto',
+  };
+  return map[status] ?? status.replaceAll('_', ' ');
+}
 
 export default function ChatPage() {
   const router = useRouter();
@@ -54,7 +82,10 @@ export default function ChatPage() {
             title: String(t['title']),
             status: String(t['status']),
             priority: String(t['priority']),
+            category: String(t['category'] ?? t['Category'] ?? ''),
             dueAt: String(t['dueAt'] ?? t['due_at'] ?? ''),
+            createdAt: String(t['createdAt'] ?? t['created_at'] ?? ''),
+            updatedAt: String(t['updatedAt'] ?? t['updated_at'] ?? ''),
           })),
         );
         const grouped: Record<string, ExecutionEvent[]> = {};
@@ -92,6 +123,23 @@ export default function ChatPage() {
     setPayload(conversation);
   }
 
+  async function reloadTickets() {
+    const ticketRows = await api.listTickets();
+    setTickets(
+      ticketRows.map((t) => ({
+        id: String(t['id']),
+        number: String(t['number']),
+        title: String(t['title']),
+        status: String(t['status']),
+        priority: String(t['priority']),
+        category: String(t['category'] ?? t['Category'] ?? ''),
+        dueAt: String(t['dueAt'] ?? t['due_at'] ?? ''),
+        createdAt: String(t['createdAt'] ?? t['created_at'] ?? ''),
+        updatedAt: String(t['updatedAt'] ?? t['updated_at'] ?? ''),
+      })),
+    );
+  }
+
   async function onSend(event: FormEvent) {
     event.preventDefault();
     if (!input.trim() || sending || paused) {
@@ -108,17 +156,7 @@ export default function ChatPage() {
         [result.events[0]?.executionId ?? crypto.randomUUID()]: result.events,
       }));
       await refresh();
-      const ticketRows = await api.listTickets();
-      setTickets(
-        ticketRows.map((t) => ({
-          id: String(t['id']),
-          number: String(t['number']),
-          title: String(t['title']),
-          status: String(t['status']),
-          priority: String(t['priority']),
-          dueAt: String(t['dueAt'] ?? t['due_at'] ?? ''),
-        })),
-      );
+      await reloadTickets();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Falha ao enviar mensagem');
     } finally {
@@ -134,17 +172,7 @@ export default function ChatPage() {
     try {
       await api.confirmDraft(payload.draft.id, payload.draft.version, confirm);
       await refresh();
-      const ticketRows = await api.listTickets();
-      setTickets(
-        ticketRows.map((t) => ({
-          id: String(t['id']),
-          number: String(t['number']),
-          title: String(t['title']),
-          status: String(t['status']),
-          priority: String(t['priority']),
-          dueAt: String(t['dueAt'] ?? t['due_at'] ?? ''),
-        })),
-      );
+      await reloadTickets();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Falha ao confirmar rascunho');
     } finally {
@@ -154,261 +182,223 @@ export default function ChatPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-navy-700">
+      <div className="flex min-h-screen items-center justify-center text-ink-2">
         <p className="animate-pulse-soft">Carregando atendimento…</p>
       </div>
     );
   }
 
+  if (!user) {
+    return (
+      <div className="flex min-h-screen items-center justify-center px-6">
+        <p className="rounded-xl bg-danger-soft px-4 py-3 text-danger-text">
+          {error ?? 'Não foi possível carregar o atendimento.'}
+        </p>
+      </div>
+    );
+  }
+
   const count = payload?.conversation?.employeeMessageCount ?? 0;
+  const messages = payload?.messages ?? [];
+  const lastAgentIndex = [...messages]
+    .map((m, i) => ({ m, i }))
+    .reverse()
+    .find(({ m }) => m.role === 'agent' || m.role === 'assistant')?.i;
+  const latestTurnEvents = Object.values(turnEvents).at(-1) ?? (payload?.events ?? []).slice(-4);
 
   return (
-    <div className="min-h-screen lg:grid lg:grid-cols-[240px_1fr]">
-      <aside className="border-r border-mist-200 bg-white/80 px-5 py-6 backdrop-blur">
-        <p className="text-xs uppercase tracking-[0.2em] text-navy-700/60">Nexo</p>
-        <h1 className="mt-2 font-display text-2xl text-navy-900">Assist</h1>
-        <p className="mt-6 text-sm text-navy-700">{user?.name}</p>
-        <p className="text-xs text-navy-700/60">{user?.area}</p>
-        <button
-          type="button"
-          className="mt-8 text-sm text-accent"
-          onClick={async () => {
-            await api.logout();
-            router.replace('/login');
-          }}
-        >
-          Sair
-        </button>
-      </aside>
+    <AppShell
+      user={user}
+      breadcrumb="Atendimento"
+      status={
+        <StatusPill
+          label={paused ? 'Agente pausado' : 'Assistente online'}
+          tone={paused ? 'warning' : 'success'}
+          dot
+        />
+      }
+    >
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-6 py-7 lg:px-12">
+          <div className="flex-1 space-y-5 overflow-y-auto pb-4">
+            {messages.length === 0 ? (
+              <p className="text-sm text-ink-3">
+                Nenhuma mensagem ainda. Pergunte sobre VPN, chamados ou abra um novo chamado.
+              </p>
+            ) : null}
 
-      <main className="flex min-h-screen flex-col">
-        <header className="border-b border-mist-200 bg-white/70 px-6 py-4 backdrop-blur">
-          <p className="text-sm text-navy-700/70">Service desk de TI / Atendimento</p>
-          <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
-            <h2 className="font-display text-2xl text-navy-900">Conversa com o assistente</h2>
-            <div className="flex items-center gap-3 text-sm">
-              <span
-                className={`rounded-full px-3 py-1 ${
-                  paused ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
-                }`}
-              >
-                {paused ? 'Agente pausado' : 'Agente disponível'}
-              </span>
-              <span className="text-navy-700">
-                {count}/30
-              </span>
-            </div>
-          </div>
-        </header>
-
-        <div className="grid flex-1 gap-4 p-4 lg:grid-cols-[1fr_320px]">
-          <section className="flex flex-col rounded-3xl bg-white shadow-panel">
-            <div className="flex-1 space-y-4 overflow-y-auto p-5">
-              {(payload?.messages ?? []).length === 0 ? (
-                <p className="text-sm text-navy-700/70">
-                  Nenhuma mensagem ainda. Pergunte sobre VPN, chamados ou abra um novo chamado.
-                </p>
-              ) : null}
-
-              {(payload?.messages ?? []).map((message: Message) => {
-                const isEmployee = message.role === 'employee';
-                const relatedEvents = Object.values(turnEvents)
-                  .flat()
-                  .filter(() => message.role === 'agent');
-                return (
-                  <div
-                    key={message.id}
-                    className={`max-w-[85%] animate-rise ${isEmployee ? 'ml-auto' : ''}`}
-                  >
-                    {!isEmployee ? (
-                      <EventChips
-                        events={
-                          relatedEvents.length > 0
-                            ? relatedEvents.slice(-4)
-                            : (payload?.events ?? []).slice(-4)
-                        }
-                      />
-                    ) : null}
-                    <div
-                      className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${
-                        isEmployee
-                          ? 'bg-navy-900 text-white'
-                          : message.role === 'analyst'
-                            ? 'bg-amber-50 text-navy-900'
-                            : 'bg-mist-100 text-navy-900'
-                      }`}
-                    >
-                      {message.role === 'analyst' ? (
-                        <p className="mb-1 text-[11px] uppercase tracking-wide text-amber-700">
+            {messages.map((message: Message, index) => {
+              const isEmployee = message.role === 'employee';
+              const isAnalyst = message.role === 'analyst';
+              const showChips = !isEmployee && !isAnalyst && index === lastAgentIndex;
+              return (
+                <div key={message.id} className="animate-rise">
+                  {showChips ? <EventChips events={latestTurnEvents} /> : null}
+                  <ChatBubble
+                    role={isEmployee ? 'employee' : isAnalyst ? 'analyst' : 'agent'}
+                    meta={
+                      isAnalyst ? (
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-success-text">
                           Analista
                         </p>
-                      ) : null}
-                      {message.content}
-                    </div>
-                  </div>
-                );
-              })}
+                      ) : null
+                    }
+                  >
+                    {message.content}
+                  </ChatBubble>
+                </div>
+              );
+            })}
 
-              {sending ? (
-                <p className="animate-pulse-soft text-sm text-navy-700/70">Processando…</p>
-              ) : null}
-            </div>
+            {tickets.length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-ink-3">Seus chamados</p>
+                {tickets.map((ticket) => (
+                  <TicketCard
+                    key={ticket.id}
+                    compact
+                    number={ticket.number}
+                    title={ticket.title}
+                    status={formatStatus(ticket.status)}
+                    statusTone={statusTone(ticket.status)}
+                    selected={selectedTicketId === ticket.id}
+                    onSelect={() => setSelectedTicketId(ticket.id)}
+                    className="bg-paper"
+                  />
+                ))}
+              </div>
+            ) : null}
+
+            {selectedTicket ? (
+              <TicketCard
+                number={selectedTicket.number}
+                title={selectedTicket.title}
+                status={formatStatus(selectedTicket.status)}
+                statusTone={statusTone(selectedTicket.status)}
+                category={selectedTicket.category || undefined}
+                priority={selectedTicket.priority}
+                openedAt={
+                  selectedTicket.createdAt
+                    ? new Date(selectedTicket.createdAt).toLocaleString('pt-BR')
+                    : undefined
+                }
+                lastUpdate={
+                  selectedTicket.dueAt
+                    ? `prazo ${new Date(selectedTicket.dueAt).toLocaleString('pt-BR')}`
+                    : undefined
+                }
+                overdue={Boolean(overdue)}
+                actions={
+                  overdue
+                    ? [
+                        {
+                          label: 'Falar com um analista',
+                          variant: 'secondary',
+                          onClick: () =>
+                            setInput('Quero falar com um analista sobre o chamado atrasado'),
+                        },
+                        {
+                          label: 'Adicionar informação',
+                          variant: 'secondary',
+                          onClick: () =>
+                            setInput(`Adicionar informação ao chamado ${selectedTicket.number}: `),
+                        },
+                        {
+                          label: 'Não, obrigado',
+                          variant: 'ghost',
+                          onClick: () => setSelectedTicketId(null),
+                        },
+                      ]
+                    : undefined
+                }
+              />
+            ) : null}
 
             {payload?.draft ? (
-              <div className="border-t border-mist-200 bg-accent-soft px-5 py-4">
-                <p className="text-sm font-semibold text-navy-900">
-                  Rascunho v{payload.draft.version} · {payload.draft.action}
-                </p>
-                <pre className="mt-2 overflow-x-auto rounded-xl bg-white/80 p-3 text-xs text-navy-800">
+              <div className="rounded-xl border border-rule bg-desk p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-medium text-ink-3">Novo chamado</span>
+                  <span className="text-xs text-ink-3">Rascunho D-{payload.draft.version}</span>
+                  <StatusPill label="Aguardando confirmação" tone="warning" />
+                </div>
+                <p className="mt-2 text-lg font-semibold text-ink">{payload.draft.action}</p>
+                <pre className="mt-2 overflow-x-auto rounded-lg bg-paper p-3 text-xs text-ink-2">
                   {JSON.stringify(payload.draft.payload, null, 2)}
                 </pre>
-                <div className="mt-3 flex gap-2">
-                  <button
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button
                     type="button"
                     disabled={sending}
                     onClick={() => void onConfirmDraft(true)}
-                    className="rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white"
+                    className="h-9"
                   >
                     Confirmar
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
+                    variant="secondary"
                     disabled={sending}
                     onClick={() => void onConfirmDraft(false)}
-                    className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-navy-800"
+                    className="h-9"
                   >
-                    Rejeitar
-                  </button>
+                    Cancelar
+                  </Button>
                 </div>
               </div>
             ) : null}
 
-            {error ? (
-              <p className="mx-5 mb-3 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">
-                {error}
-              </p>
+            {sending ? (
+              <p className="animate-pulse-soft text-sm text-ink-3">Processando…</p>
             ) : null}
+          </div>
 
-            <form onSubmit={onSend} className="border-t border-mist-200 p-4">
-              <div className="mb-3 flex flex-wrap gap-2">
-                {['VPN erro 809', 'Status dos meus chamados', 'Quero falar com um analista'].map(
-                  (chip) => (
-                    <button
-                      key={chip}
-                      type="button"
-                      className="rounded-full bg-mist-100 px-3 py-1 text-xs text-navy-800"
-                      onClick={() => setInput(chip)}
-                      disabled={paused}
-                    >
-                      {chip}
-                    </button>
-                  ),
-                )}
-              </div>
-              <div className="flex gap-2">
-                <input
-                  className="flex-1 rounded-xl border border-mist-200 bg-mist-50 px-4 py-3 text-sm outline-none focus:border-accent disabled:opacity-50"
-                  placeholder={
-                    paused
-                      ? 'Agente pausado — aguarde o analista'
-                      : 'Descreva seu problema de TI…'
-                  }
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  disabled={paused || sending}
-                  maxLength={4000}
-                />
-                <button
-                  type="submit"
-                  disabled={paused || sending || !input.trim()}
-                  className="rounded-xl bg-navy-900 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50"
-                >
-                  Enviar
-                </button>
-              </div>
-            </form>
-          </section>
+          {error ? (
+            <p className="mb-3 rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger-text">
+              {error}
+            </p>
+          ) : null}
 
-          <aside className="space-y-4">
-            <div className="rounded-3xl bg-white p-4 shadow-panel">
-              <h3 className="font-display text-lg text-navy-900">Seus chamados</h3>
-              {tickets.length === 0 ? (
-                <p className="mt-3 text-sm text-navy-700/70">Nenhum chamado encontrado.</p>
-              ) : (
-                <ul className="mt-3 space-y-2">
-                  {tickets.map((ticket) => (
-                    <li key={ticket.id}>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedTicketId(ticket.id)}
-                        className={`w-full rounded-2xl border px-3 py-2 text-left text-sm ${
-                          selectedTicketId === ticket.id
-                            ? 'border-accent bg-accent-soft'
-                            : 'border-mist-200'
-                        }`}
-                      >
-                        <p className="font-semibold">{ticket.number}</p>
-                        <p className="text-navy-700/80">{ticket.title}</p>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+          <form onSubmit={onSend} className="space-y-2 border-t border-rule pt-3">
+            <div className="mb-1 flex flex-wrap gap-2">
+              {['VPN erro 809', 'Status dos meus chamados', 'Quero falar com um analista'].map(
+                (chip) => (
+                  <button
+                    key={chip}
+                    type="button"
+                    className="rounded-full bg-desk px-3 py-1 text-xs text-ink-2 hover:bg-mist-100 disabled:opacity-50"
+                    onClick={() => setInput(chip)}
+                    disabled={paused}
+                  >
+                    {chip}
+                  </button>
+                ),
               )}
             </div>
-
-            {selectedTicket ? (
-              <div className="rounded-3xl bg-white p-4 shadow-panel animate-rise">
-                <h3 className="font-display text-lg text-navy-900">{selectedTicket.number}</h3>
-                <p className="mt-1 text-sm text-navy-700">{selectedTicket.title}</p>
-                <dl className="mt-4 space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <dt>Prioridade</dt>
-                    <dd className="font-semibold capitalize">{selectedTicket.priority}</dd>
-                  </div>
-                  <div className="flex justify-between">
-                    <dt>Status</dt>
-                    <dd>{selectedTicket.status}</dd>
-                  </div>
-                  <div className="flex justify-between">
-                    <dt>Vencimento</dt>
-                    <dd>
-                      {selectedTicket.dueAt
-                        ? new Date(selectedTicket.dueAt).toLocaleString('pt-BR')
-                        : '—'}
-                    </dd>
-                  </div>
-                </dl>
-                {overdue ? (
-                  <div className="mt-4 rounded-2xl bg-amber-50 p-3 text-sm text-amber-900">
-                    <p>Este chamado está atrasado.</p>
-                    <div className="mt-3 flex flex-col gap-2">
-                      <button
-                        type="button"
-                        className="rounded-xl bg-navy-900 px-3 py-2 text-white"
-                        onClick={() => setInput('Quero falar com um analista sobre o chamado atrasado')}
-                      >
-                        Falar com um analista
-                      </button>
-                      <button
-                        type="button"
-                        className="rounded-xl bg-white px-3 py-2"
-                        onClick={() =>
-                          setInput(`Adicionar informação ao chamado ${selectedTicket.number}: `)
-                        }
-                      >
-                        Adicionar informação
-                      </button>
-                      <button type="button" className="rounded-xl bg-white px-3 py-2">
-                        Não, obrigado
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-          </aside>
+            <div className="flex items-center gap-3">
+              <input
+                className="h-11 flex-1 rounded-xl border border-rule bg-desk px-3.5 text-[14.5px] text-ink outline-none placeholder:text-ink-3 focus:border-cta focus:bg-paper disabled:opacity-50"
+                placeholder={
+                  paused ? 'Agente pausado — aguarde o analista' : 'Escreva para o Nexo…'
+                }
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                disabled={paused || sending}
+                maxLength={4000}
+                aria-label="Mensagem"
+              />
+              <Button
+                type="submit"
+                disabled={paused || sending || !input.trim()}
+                className="h-11 w-11 shrink-0 rounded-full px-0"
+                aria-label="Enviar"
+              >
+                <SendIcon className="text-white" />
+              </Button>
+            </div>
+            <p className="text-xs text-ink-3">{count}/30 mensagens nesta sessão</p>
+          </form>
         </div>
-      </main>
-    </div>
+      </div>
+    </AppShell>
   );
 }

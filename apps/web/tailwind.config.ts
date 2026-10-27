@@ -5,28 +5,68 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        paper: '#FFFFFF',
+        desk: '#F6F7F9',
+        ink: {
+          DEFAULT: '#1B2431',
+          2: '#3D4656',
+          3: '#5B6472',
+        },
+        rule: '#E6E8EC',
+        cta: {
+          DEFAULT: '#0062C4',
+          hover: '#0054A8',
+        },
+        primary: {
+          DEFAULT: '#0285F7',
+          hover: '#0071D6',
+          soft: '#0285F712',
+          text: '#0069C7',
+        },
+        success: {
+          DEFAULT: '#00BD6C',
+          soft: '#00BD6C14',
+          text: '#00804A',
+        },
+        warning: {
+          DEFAULT: '#F5A500',
+          soft: '#F5A50018',
+          text: '#946300',
+        },
+        danger: {
+          DEFAULT: '#EE343B',
+          soft: '#EE343B12',
+          text: '#C4161D',
+        },
+        // Legacy aliases kept for gradual migration
         navy: {
-          900: '#0B1F3A',
-          800: '#123055',
-          700: '#1A3F6B',
-          600: '#24568A',
+          900: '#1B2431',
+          800: '#3D4656',
+          700: '#5B6472',
+          600: '#0062C4',
         },
         mist: {
-          50: '#F5F8FC',
-          100: '#E8EEF6',
-          200: '#D5E0EE',
+          50: '#F6F7F9',
+          100: '#EEF1F5',
+          200: '#E6E8EC',
         },
         accent: {
-          DEFAULT: '#2F6FED',
-          soft: '#E8F0FF',
+          DEFAULT: '#0062C4',
+          soft: '#0285F712',
         },
       },
       fontFamily: {
         display: ['var(--font-display)', 'Georgia', 'serif'],
         sans: ['var(--font-sans)', 'Segoe UI', 'sans-serif'],
       },
+      borderRadius: {
+        sm: '6px',
+        md: '10px',
+        lg: '14px',
+      },
       boxShadow: {
-        panel: '0 18px 50px rgba(11, 31, 58, 0.12)',
+        panel: '0 1px 2px rgba(27, 36, 49, 0.05), 0 6px 18px rgba(27, 36, 49, 0.04)',
+        input: '0 1px 2px rgba(27, 36, 49, 0.04)',
       },
     },
   },
