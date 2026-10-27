@@ -1,9 +1,14 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import postgres from 'postgres';
+import { EnvConfig } from '../config/env.config';
 
 async function main(): Promise<void> {
-  const url = process.env.DATABASE_URL ?? 'postgres://nexo:nexo@localhost:5432/nexo';
+  const url =
+    EnvConfig.getInstance().load().get(
+      'DATABASE_URL',
+      'postgres://nexo:nexo@localhost:5432/nexo',
+    ) ?? 'postgres://nexo:nexo@localhost:5432/nexo';
   const sql = postgres(url, { max: 1 });
   await sql`CREATE EXTENSION IF NOT EXISTS pgcrypto`;
 

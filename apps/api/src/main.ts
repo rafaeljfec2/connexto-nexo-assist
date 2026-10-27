@@ -8,7 +8,10 @@ import {
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { ZodError } from 'zod';
+import { EnvConfig } from './config/env.config';
 import { AppModule } from './app.module';
+
+EnvConfig.getInstance().load();
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const cookieParser = require('cookie-parser') as () => (
@@ -48,18 +51,18 @@ class SafeExceptionFilter implements ExceptionFilter {
 }
 
 async function bootstrap(): Promise<void> {
+  const env = EnvConfig.getInstance().load().snapshot();
   const app = await NestFactory.create(AppModule, { logger: ['error', 'warn', 'log'] });
   app.use(cookieParser());
   app.enableCors({
-    origin: process.env.CORS_ORIGIN ?? 'http://localhost:3000',
+    origin: env.corsOrigin,
     credentials: true,
   });
   app.useGlobalFilters(new SafeExceptionFilter());
 
-  const port = Number(process.env.API_PORT ?? 3001);
-  await app.listen(port);
+  await app.listen(env.apiPort);
   // eslint-disable-next-line no-console
-  console.log(`API listening on http://localhost:${port}`);
+  console.log(`API listening on http://localhost:${env.apiPort}`);
 }
 
 bootstrap().catch((err: unknown) => {
