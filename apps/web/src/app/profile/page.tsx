@@ -59,7 +59,7 @@ export default function ProfilePage() {
 
   return (
     <AppShell user={user} breadcrumb="Meu perfil">
-      <div className="flex-1 px-10 py-12">
+      <div className="h-full min-h-0 flex-1 overflow-y-auto px-10 py-12">
         <div className="max-w-[600px] space-y-8 animate-rise">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-ink">Meu perfil</h1>

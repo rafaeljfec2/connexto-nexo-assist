@@ -9,10 +9,21 @@ type ChatBubbleProps = {
   meta?: ReactNode;
   /** Employee bubbles default to end (sender). Console can force start. */
   align?: 'start' | 'end';
+  /** Agent surface: plain matches employee Figma; tint matches console Figma. */
+  agentStyle?: 'plain' | 'tint';
   className?: string;
+  footer?: ReactNode;
 };
 
-export function ChatBubble({ role, children, meta, align, className }: ChatBubbleProps) {
+export function ChatBubble({
+  role,
+  children,
+  meta,
+  align,
+  agentStyle = 'plain',
+  className,
+  footer,
+}: ChatBubbleProps) {
   if (role === 'system') {
     return (
       <div className={cx('flex items-center gap-3 py-2', className)}>
@@ -24,12 +35,16 @@ export function ChatBubble({ role, children, meta, align, className }: ChatBubbl
   }
 
   const resolvedAlign = align ?? (role === 'employee' ? 'end' : 'start');
+  const agentBubble =
+    agentStyle === 'tint'
+      ? 'rounded-[4px_12px_12px_12px] bg-[#E6EFFA] text-ink'
+      : 'rounded-[4px_12px_12px_12px] border border-rule bg-paper text-ink shadow-sm';
   const bubbleClass =
     role === 'employee'
       ? 'rounded-[12px_4px_12px_12px] bg-ink text-white'
       : role === 'analyst'
-        ? 'rounded-[4px_12px_12px_12px] bg-[#E3F4EA] text-ink'
-        : 'rounded-[4px_12px_12px_12px] bg-[#E6EFFA] text-ink';
+        ? 'rounded-[4px_12px_12px_12px] border border-rule bg-[#E3F4EA] text-ink'
+        : agentBubble;
 
   return (
     <div
@@ -40,7 +55,10 @@ export function ChatBubble({ role, children, meta, align, className }: ChatBubbl
       )}
     >
       {meta}
-      <div className={cx('px-3 py-2 text-[14.5px] leading-relaxed', bubbleClass)}>{children}</div>
+      <div className={cx('px-3.5 py-2.5 text-[14.5px] leading-relaxed', bubbleClass)}>
+        {children}
+        {footer}
+      </div>
     </div>
   );
 }

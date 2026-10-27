@@ -13,6 +13,8 @@ import {
 import { AppShell } from '@/components/AppShell';
 import { Button } from '@/components/Button';
 import { ChatBubble } from '@/components/ChatBubble';
+import { ChoiceOptions, messageAsksImpact } from '@/components/ChoiceOptions';
+import { DraftConfirmCard } from '@/components/DraftConfirmCard';
 import { EventChips } from '@/components/EventChips';
 import { StatusPill } from '@/components/StatusPill';
 import { TicketCard } from '@/components/TicketCard';
@@ -49,6 +51,27 @@ function formatStatus(status: string): string {
   return map[status] ?? status.replaceAll('_', ' ');
 }
 
+function mapTickets(ticketRows: Array<Record<string, unknown>>): TicketRow[] {
+  return ticketRows.map((t) => ({
+    id: String(t['id']),
+    number: String(t['number']),
+    title: String(t['title']),
+    status: String(t['status']),
+    priority: String(t['priority']),
+    category: String(t['category'] ?? t['Category'] ?? ''),
+    dueAt: String(t['dueAt'] ?? t['due_at'] ?? ''),
+    createdAt: String(t['createdAt'] ?? t['created_at'] ?? ''),
+    updatedAt: String(t['updatedAt'] ?? t['updated_at'] ?? ''),
+  }));
+}
+
+function eventsMentionTickets(events: ExecutionEvent[]): boolean {
+  return events.some((event) => {
+    const blob = `${event.tool ?? ''} ${event.intent ?? ''} ${event.result ?? ''}`.toLowerCase();
+    return blob.includes('list_my_tickets') || blob.includes('ticket');
+  });
+}
+
 export default function ChatPage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
@@ -75,19 +98,7 @@ export default function ChatPage() {
           api.listTickets(),
         ]);
         setPayload(conversation);
-        setTickets(
-          ticketRows.map((t) => ({
-            id: String(t['id']),
-            number: String(t['number']),
-            title: String(t['title']),
-            status: String(t['status']),
-            priority: String(t['priority']),
-            category: String(t['category'] ?? t['Category'] ?? ''),
-            dueAt: String(t['dueAt'] ?? t['due_at'] ?? ''),
-            createdAt: String(t['createdAt'] ?? t['created_at'] ?? ''),
-            updatedAt: String(t['updatedAt'] ?? t['updated_at'] ?? ''),
-          })),
-        );
+        setTickets(mapTickets(ticketRows));
         const grouped: Record<string, ExecutionEvent[]> = {};
         for (const event of conversation.events) {
           const key = event.executionId;
@@ -121,36 +132,27 @@ export default function ChatPage() {
   async function refresh() {
     const conversation = await api.currentConversation();
     setPayload(conversation);
+    const grouped: Record<string, ExecutionEvent[]> = {};
+    for (const event of conversation.events) {
+      const key = event.executionId;
+      grouped[key] = [...(grouped[key] ?? []), event];
+    }
+    setTurnEvents(grouped);
   }
 
   async function reloadTickets() {
-    const ticketRows = await api.listTickets();
-    setTickets(
-      ticketRows.map((t) => ({
-        id: String(t['id']),
-        number: String(t['number']),
-        title: String(t['title']),
-        status: String(t['status']),
-        priority: String(t['priority']),
-        category: String(t['category'] ?? t['Category'] ?? ''),
-        dueAt: String(t['dueAt'] ?? t['due_at'] ?? ''),
-        createdAt: String(t['createdAt'] ?? t['created_at'] ?? ''),
-        updatedAt: String(t['updatedAt'] ?? t['updated_at'] ?? ''),
-      })),
-    );
+    setTickets(mapTickets(await api.listTickets()));
   }
 
-  async function onSend(event: FormEvent) {
-    event.preventDefault();
-    if (!input.trim() || sending || paused) {
+  async function sendContent(content: string) {
+    if (!content.trim() || sending || paused) {
       return;
     }
     setSending(true);
     setError(null);
-    const content = input.trim();
     setInput('');
     try {
-      const result = await api.sendMessage(content);
+      const result = await api.sendMessage(content.trim());
       setTurnEvents((prev) => ({
         ...prev,
         [result.events[0]?.executionId ?? crypto.randomUUID()]: result.events,
@@ -162,6 +164,11 @@ export default function ChatPage() {
     } finally {
       setSending(false);
     }
+  }
+
+  async function onSend(event: FormEvent) {
+    event.preventDefault();
+    await sendContent(input);
   }
 
   async function onConfirmDraft(confirm: boolean) {
@@ -205,6 +212,16 @@ export default function ChatPage() {
     .reverse()
     .find(({ m }) => m.role === 'agent' || m.role === 'assistant')?.i;
   const latestTurnEvents = Object.values(turnEvents).at(-1) ?? (payload?.events ?? []).slice(-4);
+  const lastAgentMessage =
+    lastAgentIndex != null ? messages[lastAgentIndex] : undefined;
+  const showImpactChoices =
+    !paused &&
+    !payload?.draft &&
+    Boolean(lastAgentMessage && messageAsksImpact(lastAgentMessage.content));
+  const showTicketPicker =
+    tickets.length > 0 &&
+    (eventsMentionTickets(latestTurnEvents) ||
+      Boolean(lastAgentMessage?.content.toLowerCase().includes('chamado')));
 
   return (
     <AppShell
@@ -218,9 +235,9 @@ export default function ChatPage() {
         />
       }
     >
-      <div className="flex min-h-0 flex-1 flex-col">
-        <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-6 py-7 lg:px-12">
-          <div className="flex-1 space-y-5 overflow-y-auto pb-4">
+      <div className="flex h-full min-h-0 flex-1 flex-col">
+        <div className="mx-auto flex h-full min-h-0 w-full max-w-3xl flex-1 flex-col px-6 pt-7 lg:px-12">
+          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto pb-4">
             {messages.length === 0 ? (
               <p className="text-sm text-ink-3">
                 Nenhuma mensagem ainda. Pergunte sobre VPN, chamados ou abra um novo chamado.
@@ -231,16 +248,27 @@ export default function ChatPage() {
               const isEmployee = message.role === 'employee';
               const isAnalyst = message.role === 'analyst';
               const showChips = !isEmployee && !isAnalyst && index === lastAgentIndex;
+              const showChoices =
+                showImpactChoices && index === lastAgentIndex && !isEmployee && !isAnalyst;
               return (
                 <div key={message.id} className="animate-rise">
                   {showChips ? <EventChips events={latestTurnEvents} /> : null}
                   <ChatBubble
                     role={isEmployee ? 'employee' : isAnalyst ? 'analyst' : 'agent'}
+                    className={!isEmployee ? 'max-w-full' : undefined}
                     meta={
                       isAnalyst ? (
                         <p className="text-[11px] font-semibold uppercase tracking-wide text-success-text">
                           Analista
                         </p>
+                      ) : null
+                    }
+                    footer={
+                      showChoices ? (
+                        <ChoiceOptions
+                          disabled={sending || paused}
+                          onSelect={(label) => void sendContent(label)}
+                        />
                       ) : null
                     }
                   >
@@ -250,9 +278,8 @@ export default function ChatPage() {
               );
             })}
 
-            {tickets.length > 0 ? (
+            {showTicketPicker ? (
               <div className="space-y-2">
-                <p className="text-xs font-medium text-ink-3">Seus chamados</p>
                 {tickets.map((ticket) => (
                   <TicketCard
                     key={ticket.id}
@@ -315,36 +342,17 @@ export default function ChatPage() {
             ) : null}
 
             {payload?.draft ? (
-              <div className="rounded-xl border border-rule bg-desk p-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-medium text-ink-3">Novo chamado</span>
-                  <span className="text-xs text-ink-3">Rascunho D-{payload.draft.version}</span>
-                  <StatusPill label="Aguardando confirmação" tone="warning" />
-                </div>
-                <p className="mt-2 text-lg font-semibold text-ink">{payload.draft.action}</p>
-                <pre className="mt-2 overflow-x-auto rounded-lg bg-paper p-3 text-xs text-ink-2">
-                  {JSON.stringify(payload.draft.payload, null, 2)}
-                </pre>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    disabled={sending}
-                    onClick={() => void onConfirmDraft(true)}
-                    className="h-9"
-                  >
-                    Confirmar
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    disabled={sending}
-                    onClick={() => void onConfirmDraft(false)}
-                    className="h-9"
-                  >
-                    Cancelar
-                  </Button>
-                </div>
-              </div>
+              <DraftConfirmCard
+                draft={payload.draft}
+                busy={sending}
+                onConfirm={() => void onConfirmDraft(true)}
+                onCancel={() => void onConfirmDraft(false)}
+                onEdit={() =>
+                  setInput(
+                    `Quero editar o rascunho: ${String(payload.draft?.payload['title'] ?? '')}`,
+                  )
+                }
+              />
             ) : null}
 
             {sending ? (
@@ -353,30 +361,15 @@ export default function ChatPage() {
           </div>
 
           {error ? (
-            <p className="mb-3 rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger-text">
+            <p className="mb-3 shrink-0 rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger-text">
               {error}
             </p>
           ) : null}
 
-          <form onSubmit={onSend} className="space-y-2 border-t border-rule pt-3">
-            <div className="mb-1 flex flex-wrap gap-2">
-              {['VPN erro 809', 'Status dos meus chamados', 'Quero falar com um analista'].map(
-                (chip) => (
-                  <button
-                    key={chip}
-                    type="button"
-                    className="rounded-full bg-desk px-3 py-1 text-xs text-ink-2 hover:bg-mist-100 disabled:opacity-50"
-                    onClick={() => setInput(chip)}
-                    disabled={paused}
-                  >
-                    {chip}
-                  </button>
-                ),
-              )}
-            </div>
+          <form onSubmit={onSend} className="shrink-0 space-y-2 border-t border-rule pb-5 pt-3">
             <div className="flex items-center gap-3">
               <input
-                className="h-11 flex-1 rounded-xl border border-rule bg-desk px-3.5 text-[14.5px] text-ink outline-none placeholder:text-ink-3 focus:border-cta focus:bg-paper disabled:opacity-50"
+                className="h-12 flex-1 rounded-xl border border-rule bg-paper px-3.5 text-[14.5px] text-ink outline-none placeholder:text-ink-3 focus:border-cta disabled:opacity-50"
                 placeholder={
                   paused ? 'Agente pausado — aguarde o analista' : 'Escreva para o Nexo…'
                 }
@@ -389,10 +382,10 @@ export default function ChatPage() {
               <Button
                 type="submit"
                 disabled={paused || sending || !input.trim()}
-                className="h-11 w-11 shrink-0 rounded-full px-0"
-                aria-label="Enviar"
+                className="h-9 shrink-0 gap-2 rounded-md px-3.5"
               >
-                <SendIcon className="text-white" />
+                <SendIcon className="text-white" width={16} height={16} />
+                Enviar
               </Button>
             </div>
             <p className="text-xs text-ink-3">{count}/30 mensagens nesta sessão</p>

@@ -380,6 +380,7 @@ export default function ConsolePage() {
                     key={msg.id}
                     role={role === 'employee' ? 'employee' : role}
                     align="start"
+                    agentStyle="tint"
                     className="max-w-[75%]"
                     meta={
                       role !== 'employee' ? (

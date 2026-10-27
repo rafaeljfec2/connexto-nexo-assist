@@ -25,8 +25,8 @@ export function AppShell({ user, breadcrumb, status, children }: AppShellProps) 
   const router = useRouter();
 
   return (
-    <div className="flex min-h-screen bg-paper">
-      <aside className="flex w-[232px] shrink-0 flex-col border-r border-rule px-3.5 py-5">
+    <div className="flex h-screen overflow-hidden bg-paper">
+      <aside className="flex h-full w-[232px] shrink-0 flex-col border-r border-rule px-3.5 py-5">
         <div className="px-2">
           <Logo size={20} />
         </div>
@@ -77,16 +77,18 @@ export function AppShell({ user, breadcrumb, status, children }: AppShellProps) 
         </div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-16 items-center justify-between gap-4 border-b border-rule px-8">
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
+        <header className="flex h-16 shrink-0 items-center justify-between gap-4 border-b border-rule px-8">
           <div className="flex items-center gap-2 text-[13.5px]">
             <span className="text-ink-3">Service desk de TI</span>
-            <span className="text-ink-3">/</span>
+            <span className="text-ink-3" aria-hidden>
+              ›
+            </span>
             <span className="font-semibold text-ink">{breadcrumb}</span>
           </div>
           {status}
         </header>
-        <main className="flex min-h-0 flex-1 flex-col">{children}</main>
+        <main className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</main>
       </div>
     </div>
   );
