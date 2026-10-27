@@ -3,3 +3,4 @@ export * from './sla';
 export * from './duplicity';
 export * from './transitions';
 export * from './confirmation';
+export * from './consulta';
