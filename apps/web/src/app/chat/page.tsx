@@ -304,7 +304,7 @@ export default function ChatPage() {
       }
     >
       <div className="flex h-full min-h-0 flex-1 flex-col">
-        <div className="mx-auto flex h-full min-h-0 w-full max-w-3xl flex-1 flex-col px-6 pt-7 lg:px-12">
+        <div className="mx-auto flex h-full min-h-0 w-full max-w-4xl flex-1 flex-col px-6 pt-7 lg:px-12">
           <div className="scrollbar-none min-h-0 flex-1 space-y-5 overflow-y-auto pb-4">
             {messages.length === 0 ? (
               <p className="text-sm text-ink-3">
