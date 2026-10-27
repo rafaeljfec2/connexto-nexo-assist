@@ -18,7 +18,7 @@ import { DraftConfirmCard } from '@/components/DraftConfirmCard';
 import { EventChips } from '@/components/EventChips';
 import { StatusPill } from '@/components/StatusPill';
 import { TicketCard } from '@/components/TicketCard';
-import { SendIcon } from '@/components/icons';
+import { ArrowUpIcon } from '@/components/icons';
 
 type TicketRow = {
   id: string;
@@ -368,10 +368,10 @@ export default function ChatPage() {
             </p>
           ) : null}
 
-          <form onSubmit={onSend} className="shrink-0 space-y-2 border-t border-rule pb-5 pt-3">
-            <div className="flex items-center gap-3">
+          <form onSubmit={onSend} className="shrink-0 space-y-1.5 pb-[18px] pt-2.5">
+            <div className="flex h-12 items-center gap-2 rounded-xl border border-[rgba(27,36,49,0.12)] bg-paper py-0 pl-4 pr-1.5 focus-within:border-cta">
               <input
-                className="h-12 flex-1 rounded-xl border border-rule bg-paper px-3.5 text-[14.5px] text-ink outline-none placeholder:text-ink-3 focus:border-cta disabled:opacity-50"
+                className="min-w-0 flex-1 bg-transparent text-[14.5px] text-ink outline-none placeholder:text-ink-3 disabled:opacity-50"
                 placeholder={
                   paused ? 'Agente pausado — aguarde o analista' : 'Escreva para o Nexo…'
                 }
@@ -384,13 +384,15 @@ export default function ChatPage() {
               <Button
                 type="submit"
                 disabled={paused || sending || !input.trim()}
-                className="h-9 shrink-0 gap-2 rounded-md px-3.5"
+                className="h-9 shrink-0 gap-1.5 rounded-md px-3 text-[13.5px]"
               >
-                <SendIcon className="text-white" width={16} height={16} />
+                <ArrowUpIcon className="text-white" width={14} height={14} />
                 Enviar
               </Button>
             </div>
-            <p className="text-xs text-ink-3">{count}/30 mensagens nesta sessão</p>
+            <p className="text-right text-xs text-ink-3">
+              {count}/30 mensagens nesta sessão
+            </p>
           </form>
         </div>
       </div>
