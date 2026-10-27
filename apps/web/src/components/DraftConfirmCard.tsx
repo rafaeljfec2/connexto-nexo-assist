@@ -1,5 +1,9 @@
-import { Button } from '@/components/Button';
+'use client';
+
+import { useEffect } from 'react';
 import type { Draft } from '@/lib/api';
+import { formatPriorityPt } from '@nexo-assist/domain';
+import { cx } from '@/lib/ui';
 
 const affectedLabels: Record<string, string> = {
   self: 'Somente você',
@@ -21,9 +25,9 @@ function str(value: unknown): string {
   return typeof value === 'string' ? value : value != null ? String(value) : '';
 }
 
-function inferPriorityLabel(payload: Record<string, unknown>): string | null {
+function inferPriorityKey(payload: Record<string, unknown>): string | null {
   const explicit = str(payload['priority']);
-  if (explicit) return explicit.charAt(0).toUpperCase() + explicit.slice(1);
+  if (explicit) return explicit;
 
   const scope = str(payload['affectedScope']);
   const workStopped = payload['workStopped'];
@@ -31,13 +35,24 @@ function inferPriorityLabel(payload: Record<string, unknown>): string | null {
   const hasAlternative = payload['hasAlternative'];
 
   if (scope === 'team' || scope === 'company') {
-    if (workStopped === true) return 'Crítica';
-    return 'Alta';
+    if (workStopped === true) return 'critical';
+    return 'high';
   }
-  if (scope === 'self' && (workStopped === true || sameDay === true)) return 'Alta';
-  if (scope === 'self' && hasAlternative === true) return 'Média';
-  if (scope === 'self') return 'Baixa';
+  if (scope === 'self' && (workStopped === true || sameDay === true)) return 'high';
+  if (scope === 'self' && hasAlternative === true) return 'medium';
+  if (scope === 'self') return 'low';
   return null;
+}
+
+function formatDueTime(iso: string): string | null {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  return new Intl.DateTimeFormat('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+    timeZone: 'America/Sao_Paulo',
+  }).format(date);
 }
 
 type DraftConfirmCardProps = {
@@ -48,6 +63,7 @@ type DraftConfirmCardProps = {
   onEdit?: () => void;
 };
 
+/** Pencil “Confirmation Card” for HITL draft (Novo chamado). */
 export function DraftConfirmCard({
   draft,
   busy = false,
@@ -56,73 +72,140 @@ export function DraftConfirmCard({
   onEdit,
 }: DraftConfirmCardProps) {
   const payload = draft.payload;
-  const title = str(payload['title']) || str(draft.action) || 'Novo chamado';
+  const title = str(payload['title']) || 'Novo chamado';
   const description = str(payload['description']);
   const categoryKey = str(payload['category']);
   const category = categoryLabels[categoryKey] ?? (categoryKey || '—');
   const affected = affectedLabels[str(payload['affectedScope'])] ?? null;
-  const priority = inferPriorityLabel(payload);
+  const priorityKey = inferPriorityKey(payload);
+  const priority = priorityKey ? formatPriorityPt(priorityKey) : null;
+  const dueAtRaw = str(payload['dueAt']);
+  const dueTime = dueAtRaw ? formatDueTime(dueAtRaw) : null;
   const kind =
     draft.action === 'update'
       ? 'Atualização'
       : draft.action === 'reopen'
         ? 'Reabertura'
         : 'Novo chamado';
+  const draftCode = `D-${String(draft.version).padStart(3, '0')}`;
+  const priorityTone = priorityKey === 'critical' || priorityKey === 'high' ? 'warning' : 'neutral';
+
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (busy) return;
+      if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+        event.preventDefault();
+        onConfirm();
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [busy, onConfirm]);
 
   return (
-    <div className="w-full overflow-hidden rounded-2xl border border-[rgba(27,36,49,0.09)] bg-paper shadow-panel">
-      <div className="space-y-1.5 px-[18px] pb-3.5 pt-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[12.5px] font-medium text-ink-3">{kind}</span>
-          <span className="h-1 w-1 rounded-full bg-rule" aria-hidden />
-          <span className="text-[12.5px] text-ink-3">Rascunho D-{draft.version}</span>
-          <span className="ml-auto inline-flex items-center gap-1.5 text-[12.5px] font-medium text-warning-text">
-            <span className="h-1.5 w-1.5 rounded-full bg-warning" aria-hidden />
-            Aguardando confirmação
+    <div className="w-full overflow-hidden rounded-2xl bg-paper shadow-panel outline outline-1 outline-offset-[-0.5px] outline-[rgba(27,36,49,0.09)]">
+      <div className="flex flex-col gap-1.5 px-[18px] pb-3.5 pt-4">
+        <div className="flex w-full flex-row items-center gap-2 pb-0.5">
+          <span className="whitespace-nowrap text-[12.5px] font-medium leading-none text-ink-3">
+            {kind}
+          </span>
+          <span className="h-[3px] w-[3px] shrink-0 rounded-full bg-rule" aria-hidden />
+          <span className="whitespace-nowrap text-[12.5px] font-normal leading-none text-ink-3">
+            Rascunho {draftCode}
+          </span>
+          <span className="h-px min-w-0 flex-1" aria-hidden />
+          <span className="inline-flex shrink-0 flex-row items-center gap-1.5">
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#F5A500]" aria-hidden />
+            <span className="whitespace-nowrap text-[12.5px] font-medium leading-none text-warning-text">
+              Aguardando confirmação
+            </span>
           </span>
         </div>
-        <h3 className="text-lg font-semibold tracking-tight text-ink">{title}</h3>
+
+        <h3 className="w-full text-left text-[18px] font-semibold leading-[23px] tracking-[-0.2px] text-ink">
+          {title}
+        </h3>
         {description ? (
-          <p className="text-[13.5px] leading-relaxed text-ink-2">{description}</p>
+          <p className="w-full text-left text-[13.5px] font-normal leading-5 text-ink-2">
+            {description}
+          </p>
         ) : null}
       </div>
 
-      <div className="border-t border-rule px-[18px] pb-4 pt-3">
-        <dl className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div>
-            <dt className="text-[12.5px] text-ink-3">Categoria</dt>
-            <dd className="mt-1 text-[14.5px] font-medium text-ink">{category}</dd>
+      <div className="px-[18px] pb-4">
+        <dl className="grid grid-cols-1 gap-x-6 border-t border-rule pt-3 sm:grid-cols-3">
+          <div className="flex flex-col gap-1">
+            <dt className="text-[12.5px] font-normal leading-none text-ink-3">Categoria</dt>
+            <dd className="whitespace-nowrap text-[14.5px] font-medium leading-none text-ink">
+              {category}
+            </dd>
           </div>
           {priority ? (
-            <div>
-              <dt className="text-[12.5px] text-ink-3">Prioridade</dt>
-              <dd className="mt-1 flex items-center gap-2 text-[14.5px] font-medium text-ink">
-                <span className="h-2 w-2 rounded-full bg-warning" aria-hidden />
-                {priority}
+            <div className="flex flex-col gap-1">
+              <dt className="text-[12.5px] font-normal leading-none text-ink-3">Prioridade</dt>
+              <dd className="inline-flex flex-wrap items-center gap-1.5">
+                <span className="inline-flex items-center gap-1.5">
+                  <span
+                    className={cx(
+                      'h-1.5 w-1.5 shrink-0 rounded-full',
+                      priorityTone === 'warning' ? 'bg-[#F5A500]' : 'bg-[rgba(27,36,49,0.4)]',
+                    )}
+                    aria-hidden
+                  />
+                  <span className="whitespace-nowrap text-[14.5px] font-medium leading-none text-ink">
+                    {priority}
+                  </span>
+                </span>
+                {dueTime ? (
+                  <span className="whitespace-nowrap text-[13.5px] font-normal leading-none text-ink-3">
+                    · resposta até {dueTime}
+                  </span>
+                ) : null}
               </dd>
             </div>
           ) : null}
           {affected ? (
-            <div>
-              <dt className="text-[12.5px] text-ink-3">Afetados</dt>
-              <dd className="mt-1 text-[14.5px] font-medium text-ink">{affected}</dd>
+            <div className="flex flex-col gap-1">
+              <dt className="text-[12.5px] font-normal leading-none text-ink-3">Afetados</dt>
+              <dd className="whitespace-nowrap text-[14.5px] font-medium leading-none text-ink">
+                {affected}
+              </dd>
             </div>
           ) : null}
         </dl>
+      </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          <Button type="button" disabled={busy} onClick={onConfirm} className="h-9">
-            Confirmar
-          </Button>
-          {onEdit ? (
-            <Button type="button" variant="secondary" disabled={busy} onClick={onEdit} className="h-9">
-              Editar
-            </Button>
-          ) : null}
-          <Button type="button" variant="ghost" disabled={busy} onClick={onCancel} className="h-9">
-            Cancelar
-          </Button>
-        </div>
+      <div className="flex flex-row items-center gap-1.5 border-t border-rule bg-desk py-2 pl-2 pr-3.5">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={onConfirm}
+          className="inline-flex h-9 shrink-0 flex-row items-center gap-2 rounded-lg bg-[#0062C4] py-0 pl-3.5 pr-2.5 text-[13.5px] font-semibold text-white disabled:opacity-50"
+        >
+          Confirmar
+          <span className="rounded-md bg-white/14 px-1.5 py-px text-[11.5px] font-normal text-white/80">
+            ⌘↵
+          </span>
+        </button>
+        {onEdit ? (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onEdit}
+            className="inline-flex h-9 shrink-0 items-center rounded-lg bg-paper px-3.5 text-[13.5px] font-medium text-ink shadow-[0_1px_2px_rgba(27,36,49,0.05)] outline outline-1 outline-offset-[-0.5px] outline-[rgba(27,36,49,0.12)] disabled:opacity-50"
+          >
+            Editar
+          </button>
+        ) : null}
+        <button
+          type="button"
+          disabled={busy}
+          onClick={onCancel}
+          className="inline-flex h-9 shrink-0 items-center rounded-lg px-3.5 text-[13.5px] font-medium text-ink-2 disabled:opacity-50"
+        >
+          Cancelar
+        </button>
+        <span className="h-px min-w-0 flex-1" aria-hidden />
       </div>
     </div>
   );

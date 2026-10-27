@@ -4,10 +4,10 @@ type Choice = {
 };
 
 const IMPACT_CHOICES: Choice[] = [
-  { key: '1', label: 'Só eu' },
-  { key: '2', label: 'Minha equipe' },
-  { key: '3', label: 'Toda a empresa' },
-  { key: '4', label: 'Não sei' },
+  { key: 'self', label: 'Só eu' },
+  { key: 'team', label: 'Minha equipe' },
+  { key: 'company', label: 'Toda a empresa' },
+  { key: 'unknown', label: 'Não sei' },
 ];
 
 type ChoiceOptionsProps = {
@@ -15,20 +15,18 @@ type ChoiceOptionsProps = {
   disabled?: boolean;
 };
 
+/** Figma: plain text choice chips — no numbered badges. */
 export function ChoiceOptions({ onSelect, disabled = false }: ChoiceOptionsProps) {
   return (
     <div className="mt-3 flex flex-wrap gap-1.5">
-      {IMPACT_CHOICES.map((choice, index) => (
+      {IMPACT_CHOICES.map((choice) => (
         <button
           key={choice.key}
           type="button"
           disabled={disabled}
           onClick={() => onSelect(choice.label)}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-rule bg-paper px-3 py-1.5 text-[13.5px] font-medium text-ink transition hover:border-primary hover:bg-primary-soft hover:text-primary-text disabled:opacity-50"
+          className="rounded-lg border border-rule bg-paper px-3 py-1.5 text-[13.5px] font-medium text-ink transition hover:border-primary hover:bg-primary-soft hover:text-primary-text focus-visible:border-primary focus-visible:bg-primary-soft focus-visible:text-primary-text focus-visible:outline-none disabled:opacity-50"
         >
-          <span className="flex h-4 w-4 items-center justify-center rounded-md bg-desk text-[12.5px] text-ink-3">
-            {index + 1}
-          </span>
           {choice.label}
         </button>
       ))}
