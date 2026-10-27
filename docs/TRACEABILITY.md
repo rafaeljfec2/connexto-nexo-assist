@@ -10,10 +10,12 @@ Maps PRD evaluation criteria and critical requirements to delivery frontiers, do
 | History after restart | Conversation/messages/events in Postgres | 2, 3 | Drizzle persistence | API integration reload assertion |
 | Transparency — actions above replies | UI lists orchestrator execution events | 4, 5 | `execution_events` + chat chips | Playwright employee chat flow |
 | Interface fidelity — five screens | Login, chat, overdue card, console queue, human attendance | 5, 6 | `apps/web` | Playwright five flows |
+| Console L1–L4 / T1–T3 / A1–A4 | See `docs/SPEC_CONSOLE_ATENDENTE.md` | 6 | Console panes + `ConsoleService` | Integration return-from-waiting; Playwright claim flow |
 | Architecture separation | Web / agent / tickets separated by contract | 2, 4 | `TicketGateway`, no repo import from Mastra tools | Module boundary + typecheck |
 | Strict typing, no `any` | TypeScript strict across packages | 1–6 | `tsconfig.base.json` | `pnpm typecheck` |
 | Privacy — own tickets only | Employee cannot read another employee's ticket | 2, 3 | `TicketGateway` owner check | Integration test (INC-20150) |
 | Concurrent analyst claim | Second claim conflicts | 6 | Conditional `UPDATE` on `waiting_analyst` | Integration race test |
+| Return waiting to agent | Analyst may bounce `waiting_analyst` → `with_agent` without claim | 6 | `ConsoleService.returnToAgent` | Integration return-from-waiting |
 | Agent paused with analyst | No auto agent reply in `waiting_analyst` / `with_analyst` / `closed` | 4 | Orchestrator status gate | API unit/integration test |
 | 31st employee message | Rejected without model call | 3 | `UsageGuard` | Integration test with mock provider counter |
 | Tool step ceiling | 5th tool step does not execute | 4 | Orchestrator step limiter | Integration/unit test |
@@ -53,7 +55,8 @@ Maps PRD evaluation criteria and critical requirements to delivery frontiers, do
 |---|---|
 | `ana.souza@nexo.com.br` | Primary employee demo identity |
 | Analyst Rafael Lima | Console claim / return / close |
-| `INC-20311` | Overdue card + transfer options (screen 3) |
+| Ana Souza waiting · INC-20311 | Console Pencil featured conversation |
+| `INC-20311` | Overdue card + transfer options (screen 3) + console sidebar |
 | `INC-20298` | Multi-ticket list |
 | `REQ-10442` | Approved still open (second monitor) |
 | `INC-20150` | Cross-employee privacy |
