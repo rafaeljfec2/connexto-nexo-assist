@@ -4,15 +4,21 @@ import { useState } from 'react';
 import type { ExecutionEvent } from '@/lib/api';
 
 function humanizeEvent(event: ExecutionEvent): string {
-  const raw = (event.tool ?? event.rule ?? event.intent ?? event.result ?? '').toLowerCase();
-  if (raw.includes('list_my_tickets') || raw.includes('ticket')) return 'consultou seus chamados';
-  if (raw.includes('search_help') || raw.includes('help') || raw.includes('article')) {
-    return 'buscou na central de ajuda';
+  const tool = (event.tool ?? '').toLowerCase();
+  const rule = (event.rule ?? '').toLowerCase();
+  const intent = (event.intent ?? '').toLowerCase();
+
+  if (tool === 'list_my_tickets') return 'consultou seus chamados';
+  if (tool === 'search_help') return 'buscou na central de ajuda';
+  if (tool === 'prepare_draft') return 'montou o rascunho';
+  if (rule.includes('priority') || intent.includes('priority') || tool.includes('priority')) {
+    return 'classificou a prioridade';
   }
-  if (raw.includes('prepare_draft') || raw.includes('draft')) return 'montou o rascunho';
-  if (raw.includes('priority') || raw.includes('classif')) return 'classificou a prioridade';
-  if (raw.includes('sla') || raw.includes('due') || raw.includes('prazo')) return 'consultou o SLA';
-  if (raw.includes('transfer')) return 'preparou transferência';
+  if (rule.includes('sla') || rule.includes('due') || intent.includes('sla')) {
+    return 'consultou o SLA';
+  }
+  if (tool.includes('transfer') || intent.includes('transfer')) return 'preparou transferência';
+
   const fallback = event.tool ?? event.rule ?? event.intent ?? event.result;
   return fallback.replaceAll('_', ' ');
 }

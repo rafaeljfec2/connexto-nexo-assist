@@ -65,11 +65,9 @@ function mapTickets(ticketRows: Array<Record<string, unknown>>): TicketRow[] {
   }));
 }
 
-function eventsMentionTickets(events: ExecutionEvent[]): boolean {
-  return events.some((event) => {
-    const blob = `${event.tool ?? ''} ${event.intent ?? ''} ${event.result ?? ''}`.toLowerCase();
-    return blob.includes('list_my_tickets') || blob.includes('ticket');
-  });
+/** PRD / Figma: ticket cards appear only after the agent called list_my_tickets this turn. */
+function turnListedTickets(events: ExecutionEvent[]): boolean {
+  return events.some((event) => event.tool === 'list_my_tickets');
 }
 
 export default function ChatPage() {
@@ -151,6 +149,7 @@ export default function ChatPage() {
     setSending(true);
     setError(null);
     setInput('');
+    setSelectedTicketId(null);
     try {
       const result = await api.sendMessage(content.trim());
       setTurnEvents((prev) => ({
@@ -207,21 +206,24 @@ export default function ChatPage() {
 
   const count = payload?.conversation?.employeeMessageCount ?? 0;
   const messages = payload?.messages ?? [];
+  const allEvents = payload?.events ?? [];
   const lastAgentIndex = [...messages]
     .map((m, i) => ({ m, i }))
     .reverse()
     .find(({ m }) => m.role === 'agent' || m.role === 'assistant')?.i;
-  const latestTurnEvents = Object.values(turnEvents).at(-1) ?? (payload?.events ?? []).slice(-4);
+  const latestExecutionId = allEvents.at(-1)?.executionId;
+  const latestTurnEvents = latestExecutionId
+    ? (turnEvents[latestExecutionId] ??
+      allEvents.filter((event) => event.executionId === latestExecutionId))
+    : [];
   const lastAgentMessage =
     lastAgentIndex != null ? messages[lastAgentIndex] : undefined;
   const showImpactChoices =
     !paused &&
     !payload?.draft &&
     Boolean(lastAgentMessage && messageAsksImpact(lastAgentMessage.content));
-  const showTicketPicker =
-    tickets.length > 0 &&
-    (eventsMentionTickets(latestTurnEvents) ||
-      Boolean(lastAgentMessage?.content.toLowerCase().includes('chamado')));
+  // Do not infer from message text ("chamado" appears in greetings too).
+  const showTicketPicker = tickets.length > 0 && turnListedTickets(latestTurnEvents);
 
   return (
     <AppShell
@@ -296,7 +298,7 @@ export default function ChatPage() {
               </div>
             ) : null}
 
-            {selectedTicket ? (
+            {showTicketPicker && selectedTicket ? (
               <TicketCard
                 number={selectedTicket.number}
                 title={selectedTicket.title}
