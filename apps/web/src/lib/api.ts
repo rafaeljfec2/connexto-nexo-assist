@@ -98,7 +98,7 @@ export const api = {
   currentConversation: () => request<ConversationPayload>('/conversations/current'),
   sendMessage: (content: string) =>
     request<{
-      agentMessage: Message;
+      agentMessage: Message | null;
       events: ExecutionEvent[];
       draft: Draft | null;
       employeeMessageCount: number;
@@ -121,6 +121,7 @@ export const api = {
           summary: string | null;
           employeeMessageCount: number;
           analystId: string | null;
+          updatedAt?: string;
         };
         employeeName: string;
         employeeEmail: string;

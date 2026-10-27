@@ -133,17 +133,44 @@ export class AgentOrchestrator {
       throw new UnprocessableEntityException('Conversa inválida.');
     }
 
-    if (
-      conversation.status === 'waiting_analyst' ||
-      conversation.status === 'with_analyst' ||
-      conversation.status === 'closed'
-    ) {
+    if (conversation.status === 'closed') {
+      throw new UnprocessableEntityException('Esta conversa está encerrada.');
+    }
+
+    if (conversation.status === 'waiting_analyst') {
       throw new UnprocessableEntityException(
         'O agente está pausado nesta conversa. Aguarde um analista ou o encerramento.',
       );
     }
 
     this.usage.assertEmployeeMessageLimit(conversation.employeeMessageCount);
+
+    // Human attendance: store the employee message for the analyst; do not invoke the LLM.
+    if (conversation.status === 'with_analyst') {
+      const [employeeMessage] = await this.db
+        .insert(messages)
+        .values({
+          conversationId: conversation.id,
+          role: 'employee',
+          content: input.content,
+        })
+        .returning();
+      await this.db
+        .update(conversations)
+        .set({
+          employeeMessageCount: conversation.employeeMessageCount + 1,
+          updatedAt: new Date(),
+        })
+        .where(eq(conversations.id, conversation.id));
+      return {
+        employeeMessage,
+        agentMessage: null,
+        events: [],
+        draft: null,
+        employeeMessageCount: conversation.employeeMessageCount + 1,
+        providerName: null,
+      };
+    }
 
     if (!this.provider) {
       throw new ServiceUnavailableException(

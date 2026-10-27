@@ -199,10 +199,15 @@ export default function ChatPage() {
     })();
   }, [router]);
 
-  const paused = useMemo(() => {
-    const status = payload?.conversation?.status;
+  const status = payload?.conversation?.status;
+  const withAnalyst = status === 'with_analyst';
+  const agentPaused = useMemo(() => {
     return status === 'waiting_analyst' || status === 'with_analyst' || status === 'closed';
-  }, [payload]);
+  }, [status]);
+  // While a human is attending, the employee must still be able to reply.
+  const inputLocked = useMemo(() => {
+    return status === 'waiting_analyst' || status === 'closed';
+  }, [status]);
 
   const threadFingerprint = useMemo(() => {
     if (!payload) {
@@ -298,7 +303,7 @@ export default function ChatPage() {
   }
 
   async function sendContent(content: string) {
-    if (!content.trim() || sending || paused) {
+    if (!content.trim() || sending || inputLocked) {
       return;
     }
     stickToBottomRef.current = true;
@@ -379,7 +384,7 @@ export default function ChatPage() {
   const lastAgentMessage =
     lastAgentIndex != null ? messages[lastAgentIndex] : undefined;
   const showImpactChoices =
-    !paused &&
+    !agentPaused &&
     !payload?.draft &&
     Boolean(lastAgentMessage && messageAsksImpact(lastAgentMessage.content));
   // Ticket cards only for status/list turns (Figma consulta). Create flow may call
@@ -416,8 +421,14 @@ export default function ChatPage() {
       breadcrumb="Atendimento"
       status={
         <StatusPill
-          label={paused ? 'Agente pausado' : 'Assistente online'}
-          tone={paused ? 'warning' : 'success'}
+          label={
+            withAnalyst
+              ? 'Em atendimento humano'
+              : agentPaused
+                ? 'Agente pausado'
+                : 'Assistente online'
+          }
+          tone={withAnalyst ? 'primary' : agentPaused ? 'warning' : 'success'}
           dot
         />
       }
@@ -467,7 +478,7 @@ export default function ChatPage() {
                       footer={
                         showChoices ? (
                           <ChoiceOptions
-                            disabled={sending || paused}
+                            disabled={sending || inputLocked}
                             onSelect={(label) => void sendContent(label)}
                           />
                         ) : null
@@ -491,7 +502,7 @@ export default function ChatPage() {
                   date: compactDateFor(ticket),
                 }))}
                 selectedId={selectedTicketId}
-                disabled={sending || paused}
+                disabled={sending || inputLocked}
                 onSelect={(ticket) => {
                   setSelectedTicketId(ticket.id);
                   void sendContent(`${ticket.number} · ${ticket.title}`);
@@ -532,7 +543,7 @@ export default function ChatPage() {
                   footer={
                     overdue ? (
                       <OptionChips
-                        disabled={sending || paused}
+                        disabled={sending || inputLocked}
                         options={[
                           {
                             label: 'Falar com um analista',
@@ -620,17 +631,23 @@ export default function ChatPage() {
               <input
                 className="min-w-0 flex-1 bg-transparent text-[14.5px] text-ink outline-none placeholder:text-ink-3 disabled:opacity-50"
                 placeholder={
-                  paused ? 'Agente pausado — aguarde o analista' : 'Escreva para o Nexo…'
+                  status === 'closed'
+                    ? 'Conversa encerrada'
+                    : status === 'waiting_analyst'
+                      ? 'Agente pausado — aguarde o analista'
+                      : withAnalyst
+                        ? 'Escreva para o analista…'
+                        : 'Escreva para o Nexo…'
                 }
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                disabled={paused || sending}
+                disabled={inputLocked || sending}
                 maxLength={4000}
                 aria-label="Mensagem"
               />
               <Button
                 type="submit"
-                disabled={paused || sending || !input.trim()}
+                disabled={inputLocked || sending || !input.trim()}
                 className="h-9 shrink-0 gap-1.5 rounded-md px-3 text-[13.5px]"
               >
                 <ArrowUpIcon className="text-white" width={14} height={14} />
