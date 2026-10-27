@@ -19,6 +19,21 @@ Maps PRD evaluation criteria and critical requirements to delivery frontiers, do
 | Tool step ceiling | 5th tool step does not execute | 4 | Orchestrator step limiter | Integration/unit test |
 | Communication | README documents run, decisions, proof, trade-offs | 7 | `README.md`, `.env.example`, Compose | Manual review |
 | Deploy | Out of scope (differential) | — | — | Documented as deferred |
+| Consulta C1–C9 — status → list → select → overdue | See `docs/SPEC_CONSULTA_CHAMADO.md` | 4, 5 | Orchestrator `get_ticket` + `ticket.inspect` / `sla.compute_due`; chat picker + detail card | Integration consulta flow; chip-label unit tests; Playwright consulta |
+
+## Screen 2 — Consulta de chamado (frozen)
+
+| Rule ID | Obligation | Implementation | Evidence |
+|---|---|---|---|
+| C1 | List only own open tickets on status intent | `list_my_tickets` + UI filter `status !== resolved` | Integration: three open for Ana |
+| C2 | Ambiguity asks which ticket | Scripted reply after list | Integration / Playwright |
+| C3 | Compact list: number, title, status color, short date | `TicketCard` compact | Unit/UI |
+| C4 | Selection sends turn; inspect + SLA chips | `sendContent`; `get_ticket` + `ticket.inspect` + `sla.compute_due` | Integration selection turn |
+| C5 | Detail card with description, relative `updatedAt`, overdue | Chat detail mapping | Integration overdue INC-20311 |
+| C6 | Overdue actions send or clear | Chat action handlers | Playwright / unit |
+| C7 | Turn-scoped expandable chips | `EventChips` | Chip label unit tests |
+| C8 | `n/30` + backend block | UsageGuard + footer | Existing 31st-message test |
+| C9 | Online vs paused pill | Chat `StatusPill` | Existing pause tests |
 
 ## Annex A rule map
 
@@ -30,6 +45,7 @@ Maps PRD evaluation criteria and critical requirements to delivery frontiers, do
 | Duplicity thresholds 0.5 / 0.3 | `packages/domain/src/duplicity.ts` | `duplicity.test.ts` |
 | Complement / reopen / transfer transitions | `packages/domain/src/transitions.ts` | `transitions.test.ts` |
 | Confirmation phrases vs weak affirmations | `packages/domain/src/confirmation.ts` | `confirmation.test.ts` |
+| Consulta C1–C9 helpers (overdue, relative dates) | `packages/domain/src/consulta.ts` | `consulta.test.ts` |
 
 ## Seed fixtures used as acceptance anchors
 
