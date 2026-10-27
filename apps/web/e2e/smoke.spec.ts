@@ -49,4 +49,48 @@ test.describe('Nexo Assist smoke', () => {
     await expect(page.getByRole('heading', { name: 'Selecione uma conversa' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Para você' })).toBeVisible();
   });
+
+  test('consulta flow: status → select INC-20311 → overdue actions', async ({ page }) => {
+    // Prior demos may leave Ana in waiting_analyst; close open threads so chat can talk to the agent.
+    const { execFileSync } = await import('node:child_process');
+    execFileSync(
+      'psql',
+      [
+        'postgres://nexo:nexo@localhost:5432/nexo',
+        '-v',
+        'ON_ERROR_STOP=1',
+        '-c',
+        "UPDATE conversations SET status = 'closed', busy_until = NULL WHERE employee_id = 'a1111111-1111-4111-8111-111111111111' AND status <> 'closed';",
+      ],
+      { stdio: 'pipe' },
+    );
+
+    await page.goto('/login');
+    await page.getByRole('textbox', { name: 'E-mail corporativo' }).fill('ana.souza@nexo.com.br');
+    await page.locator('#password').fill('demo');
+    await page.getByRole('button', { name: 'Entrar →' }).click();
+    await expect(page).toHaveURL(/\/chat/);
+    await expect(page.getByText('Assistente online')).toBeVisible();
+
+    await page.getByLabel('Mensagem').fill('Qual o status do meu chamado?');
+    await page.getByRole('button', { name: 'Enviar' }).click();
+
+    await expect(page.getByText('consultou seus chamados')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/Você tem \d+ chamados? abertos?/i)).toBeVisible();
+    await expect(page.getByText(/Sobre qual/i)).toBeVisible();
+    await expect(page.getByRole('radio', { name: /INC-20311/i })).toBeVisible();
+    await expect(page.getByRole('radio', { name: /INC-20298/i })).toBeVisible();
+    await expect(page.getByRole('radio', { name: /REQ-10442/i })).toBeVisible();
+    await expect(page.getByRole('radio')).toHaveCount(3);
+
+    await page.getByRole('radio', { name: /INC-20311/i }).click();
+
+    await expect(page.getByText(/consultou o INC-20311/i)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('calculou o prazo')).toBeVisible();
+    await expect(page.getByText(/prazo vencido/i)).toBeVisible();
+    await expect(page.getByText(/Quer que eu chame um analista/i)).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Falar com um analista' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Adicionar informação' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Não, obrigado' })).toBeVisible();
+  });
 });
