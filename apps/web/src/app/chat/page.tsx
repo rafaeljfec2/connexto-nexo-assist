@@ -3,6 +3,15 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
+  buildOverdueConsultaPrompt,
+  formatCategoryLabel,
+  formatOpenedAtPt,
+  formatPriorityPt,
+  formatRelativeUpdatePt,
+  formatShortDatePt,
+  isTicketOverdue,
+} from '@nexo-assist/domain';
+import {
   api,
   ApiError,
   type ConversationPayload,
@@ -17,7 +26,9 @@ import { ChoiceOptions, messageAsksImpact } from '@/components/ChoiceOptions';
 import { DraftConfirmCard } from '@/components/DraftConfirmCard';
 import { EventChips } from '@/components/EventChips';
 import { StatusPill } from '@/components/StatusPill';
+import { OptionChips } from '@/components/OptionChips';
 import { TicketCard } from '@/components/TicketCard';
+import { TicketPickerList } from '@/components/TicketPickerList';
 import { ArrowUpIcon } from '@/components/icons';
 
 type TicketRow = {
@@ -27,6 +38,7 @@ type TicketRow = {
   status: string;
   priority: string;
   category: string;
+  description: string;
   dueAt: string;
   createdAt: string;
   updatedAt: string;
@@ -59,6 +71,7 @@ function mapTickets(ticketRows: Array<Record<string, unknown>>): TicketRow[] {
     status: String(t['status']),
     priority: String(t['priority']),
     category: String(t['category'] ?? t['Category'] ?? ''),
+    description: String(t['description'] ?? ''),
     dueAt: String(t['dueAt'] ?? t['due_at'] ?? ''),
     createdAt: String(t['createdAt'] ?? t['created_at'] ?? ''),
     updatedAt: String(t['updatedAt'] ?? t['updated_at'] ?? ''),
@@ -70,12 +83,46 @@ function turnListedTickets(events: ExecutionEvent[]): boolean {
   return events.some((event) => event.tool === 'list_my_tickets');
 }
 
+function turnInspectedTicketNumber(events: ExecutionEvent[]): string | null {
+  const inspect = events.find(
+    (event) =>
+      event.rule === 'ticket.inspect' ||
+      event.tool === 'get_ticket',
+  );
+  if (!inspect) {
+    return null;
+  }
+  const fromResult = /\b((?:INC|REQ)-\d+)\b/i.exec(inspect.result ?? '');
+  if (fromResult?.[1]) {
+    return fromResult[1].toUpperCase();
+  }
+  const fromJustification = /\b((?:INC|REQ)-\d+)\b/i.exec(inspect.justification ?? '');
+  return fromJustification?.[1]?.toUpperCase() ?? null;
+}
+
+function isOpenTicket(status: string): boolean {
+  return status !== 'resolved';
+}
+
+function compactDateFor(ticket: TicketRow): string | undefined {
+  const raw = ticket.updatedAt || ticket.createdAt;
+  if (!raw) {
+    return undefined;
+  }
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) {
+    return undefined;
+  }
+  return formatShortDatePt(date);
+}
+
 export default function ChatPage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [payload, setPayload] = useState<ConversationPayload | null>(null);
   const [tickets, setTickets] = useState<TicketRow[]>([]);
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
+  const [dismissedDetailNumber, setDismissedDetailNumber] = useState<string | null>(null);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -120,13 +167,6 @@ export default function ChatPage() {
     return status === 'waiting_analyst' || status === 'with_analyst' || status === 'closed';
   }, [payload]);
 
-  const selectedTicket = tickets.find((t) => t.id === selectedTicketId) ?? null;
-  const overdue =
-    selectedTicket && selectedTicket.dueAt
-      ? new Date(selectedTicket.dueAt).getTime() < Date.now() &&
-        selectedTicket.status !== 'resolved'
-      : false;
-
   async function refresh() {
     const conversation = await api.currentConversation();
     setPayload(conversation);
@@ -150,6 +190,7 @@ export default function ChatPage() {
     setError(null);
     setInput('');
     setSelectedTicketId(null);
+    setDismissedDetailNumber(null);
     try {
       const result = await api.sendMessage(content.trim());
       setTurnEvents((prev) => ({
@@ -222,8 +263,33 @@ export default function ChatPage() {
     !paused &&
     !payload?.draft &&
     Boolean(lastAgentMessage && messageAsksImpact(lastAgentMessage.content));
-  // Do not infer from message text ("chamado" appears in greetings too).
-  const showTicketPicker = tickets.length > 0 && turnListedTickets(latestTurnEvents);
+  // Ticket cards only for status/list turns (Figma consulta). Create flow may call
+  // list_my_tickets for transparency chips but must not dump the inbox into the thread.
+  const draftedThisTurn = latestTurnEvents.some((event) => event.tool === 'prepare_draft');
+  const openTickets = tickets.filter((ticket) => isOpenTicket(ticket.status));
+  const showTicketPicker =
+    openTickets.length > 0 &&
+    turnListedTickets(latestTurnEvents) &&
+    !draftedThisTurn &&
+    !showImpactChoices &&
+    !payload?.draft;
+
+  const inspectedNumber = turnInspectedTicketNumber(latestTurnEvents);
+  const detailTicket = inspectedNumber
+    ? (tickets.find((ticket) => ticket.number.toUpperCase() === inspectedNumber) ?? null)
+    : null;
+  const showDetailCard = Boolean(
+    inspectedNumber &&
+      detailTicket &&
+      dismissedDetailNumber?.toUpperCase() !== inspectedNumber.toUpperCase(),
+  );
+  const overdue =
+    detailTicket && detailTicket.dueAt
+      ? isTicketOverdue({
+          dueAt: new Date(detailTicket.dueAt),
+          status: detailTicket.status,
+        })
+      : false;
 
   return (
     <AppShell
@@ -249,112 +315,156 @@ export default function ChatPage() {
             {messages.map((message: Message, index) => {
               const isEmployee = message.role === 'employee';
               const isAnalyst = message.role === 'analyst';
-              const showChips = !isEmployee && !isAnalyst && index === lastAgentIndex;
+              const isLastAgent = !isEmployee && !isAnalyst && index === lastAgentIndex;
+              // Prototype: chips+card grouped outside the message bubble for draft/consulta detail.
+              const suppressBubbleForDetail = isLastAgent && showDetailCard;
+              const suppressBubbleForDraft = isLastAgent && Boolean(payload?.draft);
+              const showChips =
+                isLastAgent && !showDetailCard && !payload?.draft;
               const showChoices =
                 showImpactChoices && index === lastAgentIndex && !isEmployee && !isAnalyst;
               return (
-                <div key={message.id} className="animate-rise">
+                <div
+                  key={message.id}
+                  className={showChips ? 'flex flex-col animate-rise' : 'animate-rise'}
+                >
                   {showChips ? <EventChips events={latestTurnEvents} /> : null}
-                  <ChatBubble
-                    role={isEmployee ? 'employee' : isAnalyst ? 'analyst' : 'agent'}
-                    className={!isEmployee ? 'max-w-full' : undefined}
-                    meta={
-                      isAnalyst ? (
-                        <p className="text-[11px] font-semibold uppercase tracking-wide text-success-text">
-                          Analista
-                        </p>
-                      ) : null
-                    }
-                    footer={
-                      showChoices ? (
-                        <ChoiceOptions
-                          disabled={sending || paused}
-                          onSelect={(label) => void sendContent(label)}
-                        />
-                      ) : null
-                    }
-                  >
-                    {message.content}
-                  </ChatBubble>
+                  {suppressBubbleForDetail || suppressBubbleForDraft ? null : (
+                    <ChatBubble
+                      role={isEmployee ? 'employee' : isAnalyst ? 'analyst' : 'agent'}
+                      className={!isEmployee ? 'max-w-full' : undefined}
+                      meta={
+                        isAnalyst ? (
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-success-text">
+                            Analista
+                          </p>
+                        ) : null
+                      }
+                      footer={
+                        showChoices ? (
+                          <ChoiceOptions
+                            disabled={sending || paused}
+                            onSelect={(label) => void sendContent(label)}
+                          />
+                        ) : null
+                      }
+                    >
+                      {message.content}
+                    </ChatBubble>
+                  )}
                 </div>
               );
             })}
 
             {showTicketPicker ? (
-              <div className="space-y-2">
-                {tickets.map((ticket) => (
-                  <TicketCard
-                    key={ticket.id}
-                    compact
-                    number={ticket.number}
-                    title={ticket.title}
-                    status={formatStatus(ticket.status)}
-                    statusTone={statusTone(ticket.status)}
-                    selected={selectedTicketId === ticket.id}
-                    onSelect={() => setSelectedTicketId(ticket.id)}
-                    className="bg-paper"
-                  />
-                ))}
+              <TicketPickerList
+                tickets={openTickets.map((ticket) => ({
+                  id: ticket.id,
+                  number: ticket.number,
+                  title: ticket.title,
+                  status: formatStatus(ticket.status),
+                  statusTone: statusTone(ticket.status),
+                  date: compactDateFor(ticket),
+                }))}
+                selectedId={selectedTicketId}
+                disabled={sending || paused}
+                onSelect={(ticket) => {
+                  setSelectedTicketId(ticket.id);
+                  void sendContent(`${ticket.number} · ${ticket.title}`);
+                }}
+              />
+            ) : null}
+
+            {showDetailCard && detailTicket ? (
+              <div className="flex w-full max-w-full flex-col items-start gap-1.5 animate-rise">
+                <EventChips events={latestTurnEvents} className="mb-0" />
+                <TicketCard
+                  number={detailTicket.number}
+                  title={detailTicket.title}
+                  description={detailTicket.description || undefined}
+                  status={formatStatus(detailTicket.status)}
+                  statusTone={statusTone(detailTicket.status)}
+                  category={
+                    detailTicket.category
+                      ? formatCategoryLabel(detailTicket.category, detailTicket.title)
+                      : undefined
+                  }
+                  priority={formatPriorityPt(detailTicket.priority)}
+                  openedAt={
+                    detailTicket.createdAt
+                      ? formatOpenedAtPt(new Date(detailTicket.createdAt))
+                      : undefined
+                  }
+                  lastUpdate={
+                    detailTicket.updatedAt
+                      ? formatRelativeUpdatePt(new Date(detailTicket.updatedAt))
+                      : undefined
+                  }
+                  overdue={Boolean(overdue)}
+                />
+                <ChatBubble
+                  role="agent"
+                  className="max-w-[600px]"
+                  footer={
+                    overdue ? (
+                      <OptionChips
+                        disabled={sending || paused}
+                        options={[
+                          {
+                            label: 'Falar com um analista',
+                            onClick: () =>
+                              void sendContent(
+                                `Quero falar com um analista sobre o chamado ${detailTicket.number}`,
+                              ),
+                          },
+                          {
+                            label: 'Adicionar informação',
+                            onClick: () =>
+                              void sendContent(
+                                `Adicionar informação ao chamado ${detailTicket.number}`,
+                              ),
+                          },
+                          {
+                            label: 'Não, obrigado',
+                            onClick: () => {
+                              setSelectedTicketId(null);
+                              setDismissedDetailNumber(detailTicket.number);
+                            },
+                          },
+                        ]}
+                      />
+                    ) : undefined
+                  }
+                >
+                  {lastAgentMessage?.content ??
+                    (overdue && detailTicket.updatedAt
+                      ? buildOverdueConsultaPrompt({
+                          updatedAt: new Date(detailTicket.updatedAt),
+                        })
+                      : 'Consultei o chamado selecionado.')}
+                </ChatBubble>
               </div>
             ) : null}
 
-            {showTicketPicker && selectedTicket ? (
-              <TicketCard
-                number={selectedTicket.number}
-                title={selectedTicket.title}
-                status={formatStatus(selectedTicket.status)}
-                statusTone={statusTone(selectedTicket.status)}
-                category={selectedTicket.category || undefined}
-                priority={selectedTicket.priority}
-                openedAt={
-                  selectedTicket.createdAt
-                    ? new Date(selectedTicket.createdAt).toLocaleString('pt-BR')
-                    : undefined
-                }
-                lastUpdate={
-                  selectedTicket.dueAt
-                    ? `prazo ${new Date(selectedTicket.dueAt).toLocaleString('pt-BR')}`
-                    : undefined
-                }
-                overdue={Boolean(overdue)}
-                actions={
-                  overdue
-                    ? [
-                        {
-                          label: 'Falar com um analista',
-                          variant: 'secondary',
-                          onClick: () =>
-                            setInput('Quero falar com um analista sobre o chamado atrasado'),
-                        },
-                        {
-                          label: 'Adicionar informação',
-                          variant: 'secondary',
-                          onClick: () =>
-                            setInput(`Adicionar informação ao chamado ${selectedTicket.number}: `),
-                        },
-                        {
-                          label: 'Não, obrigado',
-                          variant: 'ghost',
-                          onClick: () => setSelectedTicketId(null),
-                        },
-                      ]
-                    : undefined
-                }
-              />
-            ) : null}
-
             {payload?.draft ? (
-              <DraftConfirmCard
-                draft={payload.draft}
-                busy={sending}
-                onConfirm={() => void onConfirmDraft(true)}
-                onCancel={() => void onConfirmDraft(false)}
-                onEdit={() =>
-                  setInput(
-                    `Quero editar o rascunho: ${String(payload.draft?.payload['title'] ?? '')}`,
-                  )
-                }
-              />
+              <div className="flex w-full flex-col items-start gap-1.5 animate-rise">
+                <EventChips events={latestTurnEvents} className="mb-0" />
+                <ChatBubble role="agent" className="max-w-[600px]">
+                  {lastAgentMessage?.content ??
+                    'Confira o rascunho antes de eu criar o chamado:'}
+                </ChatBubble>
+                <DraftConfirmCard
+                  draft={payload.draft}
+                  busy={sending}
+                  onConfirm={() => void onConfirmDraft(true)}
+                  onCancel={() => void onConfirmDraft(false)}
+                  onEdit={() =>
+                    setInput(
+                      `Quero editar o rascunho: ${String(payload.draft?.payload['title'] ?? '')}`,
+                    )
+                  }
+                />
+              </div>
             ) : null}
 
             {sending ? (
@@ -369,7 +479,7 @@ export default function ChatPage() {
           ) : null}
 
           <form onSubmit={onSend} className="shrink-0 space-y-1.5 pb-[18px] pt-2.5">
-            <div className="flex h-12 items-center gap-2 rounded-xl border border-[rgba(27,36,49,0.12)] bg-paper py-0 pl-4 pr-1.5 focus-within:border-cta">
+            <div className="flex h-12 items-center gap-x-2 rounded-xl border border-[rgba(27,36,49,0.12)] bg-paper py-0 pl-4 pr-1.5 focus-within:border-cta">
               <input
                 className="min-w-0 flex-1 bg-transparent text-[14.5px] text-ink outline-none placeholder:text-ink-3 disabled:opacity-50"
                 placeholder={
