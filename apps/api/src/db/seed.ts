@@ -1,22 +1,41 @@
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { computeDueAt } from '@nexo-assist/domain';
 import { EnvConfig } from '../config/env.config';
-import { closeDb, createDb } from './client';
+import { closeDb, createDb, type AppDatabase } from './client';
 
 EnvConfig.getInstance().load();
 import {
   conversations,
+  drafts,
+  executionEvents,
   helpArticles,
   messages,
+  operations,
   seedMeta,
+  sessions,
   ticketHistory,
   tickets,
   users,
 } from './schema';
 
-const SEED_ID = 'nexo-assist-demo-v2';
+const SEED_ID = 'nexo-assist-demo-v3';
+const LEGACY_SEED_IDS = ['nexo-assist-demo-v2'] as const;
 
-const IDS = {
+async function wipeDemoTables(db: AppDatabase): Promise<void> {
+  await db.delete(executionEvents);
+  await db.delete(drafts);
+  await db.delete(messages);
+  await db.delete(conversations);
+  await db.delete(ticketHistory);
+  await db.delete(tickets);
+  await db.delete(operations);
+  await db.delete(helpArticles);
+  await db.delete(sessions);
+  await db.delete(users);
+  await db.delete(seedMeta);
+}
+
+export const IDS = {
   ana: 'a1111111-1111-4111-8111-111111111111',
   rafael: 'a2222222-2222-4222-8222-222222222222',
   bruno: 'a3333333-3333-4333-8333-333333333333',
@@ -43,12 +62,22 @@ export async function runSeed(now = new Date()): Promise<void> {
     return;
   }
 
+  const legacy = await db
+    .select()
+    .from(seedMeta)
+    .where(inArray(seedMeta.id, [...LEGACY_SEED_IDS]));
+  if (legacy.length > 0) {
+    // eslint-disable-next-line no-console
+    console.log('Upgrading demo seed to v3 (wiping prior demo tables)…');
+    await wipeDemoTables(db);
+  }
+
   await db.insert(users).values([
     {
       id: IDS.ana,
       email: 'ana.souza@nexo.com.br',
       name: 'Ana Souza',
-      area: 'Operações',
+      area: 'Financeiro',
       role: 'employee',
     },
     {
@@ -245,8 +274,14 @@ export async function runSeed(now = new Date()): Promise<void> {
     {
       ticketId: IDS.inc20311,
       fromStatus: null,
-      toStatus: 'waiting_analyst',
+      toStatus: 'open',
       note: 'Chamado aberto pelo portal.',
+    },
+    {
+      ticketId: IDS.inc20311,
+      fromStatus: 'open',
+      toStatus: 'waiting_analyst',
+      note: 'Transferido para um analista',
     },
     {
       ticketId: IDS.inc20298,
@@ -272,10 +307,10 @@ export async function runSeed(now = new Date()): Promise<void> {
     {
       id: IDS.convAna,
       employeeId: IDS.ana,
-      status: 'with_agent',
+      status: 'waiting_analyst',
       analystId: null,
-      employeeMessageCount: 0,
-      summary: null,
+      employeeMessageCount: 4,
+      summary: 'Está parado há 5 dias. Quero falar com um analista. · INC-20311',
     },
     {
       id: IDS.convWaiting,
@@ -312,6 +347,48 @@ export async function runSeed(now = new Date()): Promise<void> {
   ]);
 
   await db.insert(messages).values([
+    {
+      conversationId: IDS.convAna,
+      role: 'employee',
+      content: 'Qual o status do meu chamado?',
+    },
+    {
+      conversationId: IDS.convAna,
+      role: 'agent',
+      content: 'Você tem 3 chamados abertos. Sobre qual deles quer saber?',
+    },
+    {
+      conversationId: IDS.convAna,
+      role: 'employee',
+      content: 'INC-20311 · Notebook lento após atualização',
+    },
+    {
+      conversationId: IDS.convAna,
+      role: 'agent',
+      content:
+        'Está sem atualização há 5 dias, acima do prazo de 3 dias úteis. Quer que eu chame um analista?',
+    },
+    {
+      conversationId: IDS.convAna,
+      role: 'employee',
+      content: 'Está parado há 5 dias.',
+    },
+    {
+      conversationId: IDS.convAna,
+      role: 'employee',
+      content: 'Quero falar com um analista.',
+    },
+    {
+      conversationId: IDS.convAna,
+      role: 'agent',
+      content:
+        'Encaminhei para o Suporte N2. Um analista vai falar com você em até 2 h úteis.',
+    },
+    {
+      conversationId: IDS.convAna,
+      role: 'system',
+      content: 'Transferida para Suporte N2',
+    },
     {
       conversationId: IDS.convWaiting,
       role: 'employee',
@@ -356,5 +433,3 @@ if (require.main === module) {
       process.exit(1);
     });
 }
-
-export { IDS };
