@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Inject, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { LoginRequestSchema } from '@nexo-assist/contracts';
 import { AuthService } from './auth.service';
@@ -8,6 +9,8 @@ import { AuthGuard, type AuthedRequest, readSessionCookie } from './auth.guard';
 export class AuthController {
   constructor(@Inject(AuthService) private readonly auth: AuthService) {}
 
+  /** Demo auth accepts any non-empty password — keep brute-force cheap to burn. */
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('login')
   async login(
     @Body() body: unknown,

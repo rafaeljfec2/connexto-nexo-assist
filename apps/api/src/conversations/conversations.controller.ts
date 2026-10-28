@@ -13,6 +13,7 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
+import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { ConfirmDraftRequestSchema, SendMessageRequestSchema } from '@nexo-assist/contracts';
 import type { Response } from 'express';
 import { eq } from 'drizzle-orm';
@@ -36,6 +37,8 @@ export class ConversationsController {
     return this.conversationsService.getOrCreateCurrent(req.user!.id);
   }
 
+  /** LLM turns are expensive — tighter than the global API budget. */
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Post('current/messages')
   async send(@Req() req: AuthedRequest, @Body() body: unknown) {
     const parsed = SendMessageRequestSchema.parse(body);
@@ -48,6 +51,8 @@ export class ConversationsController {
     return this.conversationsService.confirmDraft(req.user!.id, parsed);
   }
 
+  /** Long-lived SSE should not consume the request-rate budget. */
+  @SkipThrottle({ default: true })
   @Get(':id/events')
   async streamEvents(
     @Param('id') id: string,

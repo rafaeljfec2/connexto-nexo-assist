@@ -134,6 +134,13 @@ PostgreSQL is the source of truth for users, sessions, conversations, messages, 
 
 Agent module layout and decision ADRs: [`docs/agent.md`](docs/agent.md), [`docs/architecture.md`](docs/architecture.md).
 
+### API hardening (demo / production edge)
+
+- `helmet` sets baseline HTTP security headers (CSP left to the Next.js app).
+- `trust proxy` so rate limits see the real client IP behind Traefik/FlowDeploy.
+- Global `@nestjs/throttler` (120 req/min) with tighter caps on `POST /auth/login` (10/min) and `POST /conversations/current/messages` (30/min). Health and SSE streams skip the budget.
+- Prompt-injection hygiene: help/ticket free text is marked untrusted for the LLM; mutations still require HITL.
+
 ## Product readings documented from the PRD
 
 - Time zone `America/Sao_Paulo`; business hours Mon–Fri 08:00–18:00 (10h/day). No holiday calendar.
@@ -157,7 +164,7 @@ API health: `GET https://api-nexo-assist.connexto.com.br/health/live`. Productio
 - Mastra stays a library inside Nest (not LangGraph, not an agent microservice). Annex A lives in `@nexo-assist/domain` so priority/SLA/duplicity stay deterministic and unit-testable without calling a model. Ticket writes only go through `TicketGateway` after an exact draft version is confirmed.
 - Help search matches tokens/error codes. Vector RAG would help fuzzy questions, but the seeded help center is small enough that a simpler search kept the delivery honest and testable.
 - Playwright covers smoke paths; with more time we would harden the five scripted UI flows (including the overdue card) against the seed fixtures.
-- Production-grade auth (real passwords, MFA, rate limits) and richer deploy observability are the main deferred differentials — enough for the challenge, not a full SaaS hardening pass.
+- Production-grade auth (real passwords, MFA) and richer deploy observability remain deferred. Baseline HTTP hardening (Helmet, trust proxy, throttling) is already on the API edge.
 
 ## Useful commands
 

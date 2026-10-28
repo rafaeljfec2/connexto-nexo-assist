@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuthController } from './auth/auth.controller';
 import { AuthService } from './auth/auth.service';
 import { AuthGuard, AnalystGuard, EmployeeGuard } from './auth/auth.guard';
@@ -15,6 +17,15 @@ import { HealthController } from './health.controller';
 import { ConversationEventsService } from './events/conversation-events.service';
 
 @Module({
+  imports: [
+    ThrottlerModule.forRoot([
+      {
+        name: 'default',
+        ttl: 60_000,
+        limit: 120,
+      },
+    ]),
+  ],
   controllers: [
     HealthController,
     AuthController,
@@ -34,6 +45,7 @@ import { ConversationEventsService } from './events/conversation-events.service'
     TicketGateway,
     ConsoleService,
     ConversationEventsService,
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
   ],
   exports: [AuthService, TicketGateway, ConversationEventsService],
 })

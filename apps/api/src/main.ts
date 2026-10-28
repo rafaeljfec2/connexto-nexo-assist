@@ -7,7 +7,9 @@ import {
   type ArgumentsHost,
   HttpException,
 } from '@nestjs/common';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import type { Response } from 'express';
+import helmet from 'helmet';
 import { ZodError } from 'zod';
 import { resolveModelId } from './agent/providers/mastra';
 import { EnvConfig } from './config/env.config';
@@ -85,8 +87,19 @@ async function bootstrap(): Promise<void> {
   const env = EnvConfig.getInstance().load().snapshot();
   bootstrapLogger.log('Running database migrations...');
   await runMigrations(env.databaseUrl);
-  const app = await NestFactory.create(AppModule, { logger: nestLogLevels() });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    logger: nestLogLevels(),
+  });
   app.enableShutdownHooks();
+  // Behind Traefik / FlowDeploy so Throttler sees the real client IP.
+  app.set('trust proxy', 1);
+  app.use(
+    helmet({
+      // API is JSON + cookie auth; CSP belongs to the Next.js frontend.
+      contentSecurityPolicy: false,
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    }),
+  );
   app.use(cookieParser());
   app.enableCors({
     origin: env.corsOrigin,
