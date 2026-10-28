@@ -54,11 +54,11 @@ API image runs migrate + idempotent seed on start.
 
 ### LLM choice (TECH-3)
 
-Runtime uses `@mastra/core` (`Agent` + `createTool` + `generate`) inside the Nest API process — the PRD preferred stack, without a second microservice.
+We run `@mastra/core` (`Agent` + `createTool` + `generate`) inside the Nest API process. The PRD prefers Mastra (or LangGraph.js); we picked Mastra because this product needs a short tool-calling loop, not a second orchestration graph — Nest already owns session, lease, HITL and persistence. LangGraph would duplicate that job for little gain here.
 
-- **Default `openrouter`** + free Nemotron model: zero-cost evaluation turns with a real chat model.
-- **`openai`**: optional fallback when you prefer OpenAI models/keys.
-- **`scripted`**: deterministic offline/CI provider (no network, no token cost) used by the automated proof suite.
+- **Default `openrouter`** + free Nemotron: real chat for evaluators without burning budget.
+- **`openai`**: same path when you already have an OpenAI key/model.
+- **`scripted`**: no network and no tokens — how CI proves the pipeline. Decision *quality* still comes from `@nexo-assist/domain` and integration tests, not from hoping the model is stable in CI.
 
 ## Acesso à aplicação
 
@@ -152,10 +152,10 @@ API health: `GET https://api-nexo-assist.connexto.com.br/health/live`. Productio
 
 ## Trade-offs and what would come next
 
-- The agent uses `@mastra/core` inside the Nest API process (not a second microservice or LangGraph). Ticket mutations stay behind `TicketGateway` + HITL; Annex A stays in `@nexo-assist/domain`. Scripted provider covers automated proof without OpenAI cost.
-- Help search is token/error-code based, not vector RAG.
-- Playwright covers smoke paths; expanding to the full five scripted flows with seeded overdue-card assertions would be the next UI hardening step.
-- Production auth (real passwords, MFA, rate limits) and richer deploy observability remain deferred differentials.
+- Mastra stays a library inside Nest (not LangGraph, not an agent microservice). Annex A lives in `@nexo-assist/domain` so priority/SLA/duplicity stay deterministic and unit-testable without calling a model. Ticket writes only go through `TicketGateway` after an exact draft version is confirmed.
+- Help search matches tokens/error codes. Vector RAG would help fuzzy questions, but the seeded help center is small enough that a simpler search kept the delivery honest and testable.
+- Playwright covers smoke paths; with more time we would harden the five scripted UI flows (including the overdue card) against the seed fixtures.
+- Production-grade auth (real passwords, MFA, rate limits) and richer deploy observability are the main deferred differentials — enough for the challenge, not a full SaaS hardening pass.
 
 ## Useful commands
 
