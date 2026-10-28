@@ -18,7 +18,10 @@ import {
   statusTone,
   type TicketRow,
 } from './chat-helpers';
-import { detailCardAgentContent } from './chat-thread-derivations';
+import {
+  detailCardAgentContent,
+  ticketPickerIntroContent,
+} from './chat-thread-derivations';
 
 export type ChatThreadViewProps = {
   messages: Message[];
@@ -73,6 +76,11 @@ export function ChatThreadView(props: ChatThreadViewProps) {
     onEditDraft,
   } = props;
 
+  const detailFollowUpText =
+    showDetailCard && detailTicket
+      ? detailCardAgentContent({ lastAgentMessage, overdue, detailTicket })
+      : null;
+
   return (
     <>
       {messages.length === 0 ? (
@@ -87,8 +95,9 @@ export function ChatThreadView(props: ChatThreadViewProps) {
         const isLastAgent = !isEmployee && !isAnalyst && index === lastAgentIndex;
         const suppressBubbleForDetail = isLastAgent && showDetailCard;
         const suppressBubbleForDraft = isLastAgent && Boolean(payload?.draft);
+        const suppressBubbleForPicker = isLastAgent && showTicketPicker;
         const showChips =
-          isLastAgent && !showDetailCard && !payload?.draft;
+          isLastAgent && !showDetailCard && !payload?.draft && !showTicketPicker;
         const showChoices =
           showImpactChoices && index === lastAgentIndex && !isEmployee && !isAnalyst;
         return (
@@ -97,7 +106,9 @@ export function ChatThreadView(props: ChatThreadViewProps) {
             className={showChips ? 'flex flex-col animate-rise' : 'animate-rise'}
           >
             {showChips ? <EventChips events={latestTurnEvents} /> : null}
-            {suppressBubbleForDetail || suppressBubbleForDraft ? null : (
+            {suppressBubbleForDetail ||
+            suppressBubbleForDraft ||
+            suppressBubbleForPicker ? null : (
               <ChatBubble
                 role={isEmployee ? 'employee' : isAnalyst ? 'analyst' : 'agent'}
                 className={!isEmployee ? 'max-w-full' : undefined}
@@ -125,24 +136,30 @@ export function ChatThreadView(props: ChatThreadViewProps) {
       })}
 
       {showTicketPicker ? (
-        <TicketPickerList
-          tickets={openTickets.map((ticket) => ({
-            id: ticket.id,
-            number: ticket.number,
-            title: ticket.title,
-            status: formatStatus(ticket.status),
-            statusTone: statusTone(ticket.status),
-            date: compactDateFor(ticket),
-          }))}
-          selectedId={selectedTicketId}
-          disabled={sending || inputLocked}
-          onSelect={(ticket) => {
-            const row = openTickets.find((t) => t.id === ticket.id);
-            if (row) {
-              onSelectTicket(row);
-            }
-          }}
-        />
+        <div className="flex w-full flex-col items-start gap-1.5 animate-rise">
+          <EventChips events={latestTurnEvents} className="mb-0" />
+          <ChatBubble role="agent" className="max-w-[600px]">
+            {ticketPickerIntroContent(openTickets.length)}
+          </ChatBubble>
+          <TicketPickerList
+            tickets={openTickets.map((ticket) => ({
+              id: ticket.id,
+              number: ticket.number,
+              title: ticket.title,
+              status: formatStatus(ticket.status),
+              statusTone: statusTone(ticket.status),
+              date: compactDateFor(ticket),
+            }))}
+            selectedId={selectedTicketId}
+            disabled={sending || inputLocked}
+            onSelect={(ticket) => {
+              const row = openTickets.find((t) => t.id === ticket.id);
+              if (row) {
+                onSelectTicket(row);
+              }
+            }}
+          />
+        </div>
       ) : null}
 
       {showDetailCard && detailTicket ? (
@@ -172,39 +189,41 @@ export function ChatThreadView(props: ChatThreadViewProps) {
             }
             overdue={Boolean(overdue)}
           />
-          <ChatBubble
-            role="agent"
-            className="max-w-[600px]"
-            footer={
-              overdue ? (
-                <OptionChips
-                  disabled={sending || inputLocked}
-                  options={[
-                    {
-                      label: 'Falar com um analista',
-                      onClick: () =>
-                        onSendContent(
-                          `Quero falar com um analista sobre o chamado ${detailTicket.number}`,
-                        ),
-                    },
-                    {
-                      label: 'Adicionar informação',
-                      onClick: () =>
-                        onSendContent(
-                          `Adicionar informação ao chamado ${detailTicket.number}`,
-                        ),
-                    },
-                    {
-                      label: 'Não, obrigado',
-                      onClick: () => onDismissDetail(detailTicket.number),
-                    },
-                  ]}
-                />
-              ) : undefined
-            }
-          >
-            {detailCardAgentContent({ lastAgentMessage, overdue, detailTicket })}
-          </ChatBubble>
+          {detailFollowUpText || overdue ? (
+            <ChatBubble
+              role="agent"
+              className="max-w-[600px]"
+              footer={
+                overdue ? (
+                  <OptionChips
+                    disabled={sending || inputLocked}
+                    options={[
+                      {
+                        label: 'Falar com um analista',
+                        onClick: () =>
+                          onSendContent(
+                            `Quero falar com um analista sobre o chamado ${detailTicket.number}`,
+                          ),
+                      },
+                      {
+                        label: 'Adicionar informação',
+                        onClick: () =>
+                          onSendContent(
+                            `Adicionar informação ao chamado ${detailTicket.number}`,
+                          ),
+                      },
+                      {
+                        label: 'Não, obrigado',
+                        onClick: () => onDismissDetail(detailTicket.number),
+                      },
+                    ]}
+                  />
+                ) : undefined
+              }
+            >
+              {detailFollowUpText ?? ''}
+            </ChatBubble>
+          ) : null}
         </div>
       ) : null}
 

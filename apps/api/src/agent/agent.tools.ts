@@ -122,12 +122,27 @@ export function asTicketInspectResult(value: unknown): TicketInspectResult | nul
   };
 }
 
+const TICKET_STATUS_LABEL_PT: Record<string, string> = {
+  waiting_analyst: 'aguardando analista',
+  in_progress: 'em andamento',
+  approved: 'aprovado',
+  resolved: 'resolvido',
+  transferred: 'transferido',
+};
+
+/** Human-readable ticket status for agent replies (never leak enum tokens). */
+export function formatTicketStatusLabel(status: string): string {
+  const key = status.trim().toLowerCase();
+  return TICKET_STATUS_LABEL_PT[key] ?? status.replaceAll('_', ' ');
+}
+
 export function buildConsultaDetailReply(
   ticket: TicketInspectResult,
   overdue: boolean,
 ): string {
   if (!overdue) {
-    return `Consultei o ${ticket.number} (${ticket.title}). Status atual: ${ticket.status}. Posso explicar o prazo ou complementar o chamado se precisar.`;
+    const statusLabel = formatTicketStatusLabel(ticket.status);
+    return `Consultei o ${ticket.number} (${ticket.title}). Status atual: ${statusLabel}. Posso explicar o prazo ou complementar o chamado se precisar.`;
   }
   return buildOverdueConsultaPrompt({
     updatedAt: new Date(ticket.updatedAt || ticket.createdAt || Date.now()),

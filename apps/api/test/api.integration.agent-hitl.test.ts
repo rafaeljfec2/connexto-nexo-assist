@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { closeDb, createDb } from '../src/db/client';
-import { conversations, drafts, messages, tickets } from '../src/db/schema';
+import { conversations, drafts, messages, ticketHistory, tickets } from '../src/db/schema';
 import { IDS } from '../src/db/seed';
 import { AgentOrchestrator } from '../src/agent/agent.orchestrator';
 import { PolicyEngine } from '../src/agent/policy.engine';
@@ -139,5 +139,11 @@ describe('API integration — agent HITL drafts', () => {
     const created = await db.select().from(tickets);
     const matches = created.filter((ticket) => ticket.title === 'Draft confirm retry');
     expect(matches).toHaveLength(1);
+
+    // Cleanup: shared demo DB must not keep HITL fixture tickets visible to Ana in chat.
+    for (const ticket of matches) {
+      await db.delete(ticketHistory).where(eq(ticketHistory.ticketId, ticket.id));
+      await db.delete(tickets).where(eq(tickets.id, ticket.id));
+    }
   });
 });
