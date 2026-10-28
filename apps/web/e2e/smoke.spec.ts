@@ -68,7 +68,7 @@ test.describe('Nexo Assist smoke', () => {
         '-v',
         'ON_ERROR_STOP=1',
         '-c',
-        "UPDATE conversations SET status = 'waiting_analyst', analyst_id = NULL, summary = 'Está parado há 5 dias. Quero falar com um analista. · INC-20311' WHERE id = 'c5555555-5555-4555-8555-555555555555';",
+        "INSERT INTO conversations (id, employee_id, status, analyst_id, employee_message_count, summary) VALUES ('c5555555-5555-4555-8555-555555555555', 'a1111111-1111-4111-8111-111111111111', 'waiting_analyst', NULL, 4, 'Está parado há 5 dias. Quero falar com um analista. · INC-20311') ON CONFLICT (id) DO UPDATE SET status = 'waiting_analyst', analyst_id = NULL, summary = EXCLUDED.summary, busy_until = NULL, active_execution_id = NULL, updated_at = NOW();",
       ],
       { stdio: 'pipe' },
     );
@@ -108,7 +108,7 @@ test.describe('Nexo Assist smoke', () => {
         '-v',
         'ON_ERROR_STOP=1',
         '-c',
-        "UPDATE conversations SET status = 'waiting_analyst', analyst_id = NULL, summary = 'Está parado há 5 dias. Quero falar com um analista. · INC-20311' WHERE id = 'c5555555-5555-4555-8555-555555555555';",
+        "INSERT INTO conversations (id, employee_id, status, analyst_id, employee_message_count, summary) VALUES ('c5555555-5555-4555-8555-555555555555', 'a1111111-1111-4111-8111-111111111111', 'waiting_analyst', NULL, 4, 'Está parado há 5 dias. Quero falar com um analista. · INC-20311') ON CONFLICT (id) DO UPDATE SET status = 'waiting_analyst', analyst_id = NULL, summary = EXCLUDED.summary, busy_until = NULL, active_execution_id = NULL, updated_at = NOW();",
       ],
       { stdio: 'pipe' },
     );
@@ -140,7 +140,7 @@ test.describe('Nexo Assist smoke', () => {
         '-v',
         'ON_ERROR_STOP=1',
         '-c',
-        "UPDATE conversations SET status = 'waiting_analyst', analyst_id = NULL, summary = 'Está parado há 5 dias. Quero falar com um analista. · INC-20311' WHERE id = 'c5555555-5555-4555-8555-555555555555';",
+        "INSERT INTO conversations (id, employee_id, status, analyst_id, employee_message_count, summary) VALUES ('c5555555-5555-4555-8555-555555555555', 'a1111111-1111-4111-8111-111111111111', 'waiting_analyst', NULL, 4, 'Está parado há 5 dias. Quero falar com um analista. · INC-20311') ON CONFLICT (id) DO UPDATE SET status = 'waiting_analyst', analyst_id = NULL, summary = EXCLUDED.summary, busy_until = NULL, active_execution_id = NULL, updated_at = NOW();",
       ],
       { stdio: 'pipe' },
     );

@@ -243,15 +243,9 @@ export async function insertDemoData(db: AppDatabase, now: Date): Promise<void> 
     },
   ]);
 
+  // Ana starts with no conversation — employee chat opens a fresh with_agent thread on first use.
+  // IDS.convAna remains reserved for console/e2e fixtures that upsert a waiting handoff on demand.
   await db.insert(conversations).values([
-    {
-      id: IDS.convAna,
-      employeeId: IDS.ana,
-      status: 'waiting_analyst',
-      analystId: null,
-      employeeMessageCount: 4,
-      summary: 'Está parado há 5 dias. Quero falar com um analista. · INC-20311',
-    },
     {
       id: IDS.convWaiting,
       employeeId: IDS.carla,
@@ -287,48 +281,6 @@ export async function insertDemoData(db: AppDatabase, now: Date): Promise<void> 
   ]);
 
   await db.insert(messages).values([
-    {
-      conversationId: IDS.convAna,
-      role: 'employee',
-      content: 'Qual o status do meu chamado?',
-    },
-    {
-      conversationId: IDS.convAna,
-      role: 'agent',
-      content: 'Você tem 3 chamados abertos. Sobre qual deles quer saber?',
-    },
-    {
-      conversationId: IDS.convAna,
-      role: 'employee',
-      content: 'INC-20311 · Notebook lento após atualização',
-    },
-    {
-      conversationId: IDS.convAna,
-      role: 'agent',
-      content:
-        'Está sem atualização há 5 dias, acima do prazo de 3 dias úteis. Quer que eu chame um analista?',
-    },
-    {
-      conversationId: IDS.convAna,
-      role: 'employee',
-      content: 'Está parado há 5 dias.',
-    },
-    {
-      conversationId: IDS.convAna,
-      role: 'employee',
-      content: 'Quero falar com um analista.',
-    },
-    {
-      conversationId: IDS.convAna,
-      role: 'agent',
-      content:
-        'Encaminhei para o Suporte N2. Um analista vai falar com você em até 2 h úteis.',
-    },
-    {
-      conversationId: IDS.convAna,
-      role: 'system',
-      content: 'Transferida para Suporte N2',
-    },
     {
       conversationId: IDS.convWaiting,
       role: 'employee',

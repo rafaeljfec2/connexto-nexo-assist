@@ -6,6 +6,29 @@ import { IDS } from '../src/db/seed';
 import { ConsoleService } from '../src/console/console.service';
 import { setupIntegrationDb } from './helpers/db';
 
+async function ensureAnaWaitingConversation(): Promise<void> {
+  const db = createDb();
+  await db
+    .insert(conversations)
+    .values({
+      id: IDS.convAna,
+      employeeId: IDS.ana,
+      status: 'waiting_analyst',
+      analystId: null,
+      employeeMessageCount: 4,
+      summary: 'Está parado há 5 dias. Quero falar com um analista. · INC-20311',
+    })
+    .onConflictDoUpdate({
+      target: conversations.id,
+      set: {
+        status: 'waiting_analyst',
+        analystId: null,
+        summary: 'Está parado há 5 dias. Quero falar com um analista. · INC-20311',
+        updatedAt: new Date(),
+      },
+    });
+}
+
 describe('API integration — console claim and return', () => {
   beforeAll(async () => {
     await setupIntegrationDb();
@@ -29,6 +52,7 @@ describe('API integration — console claim and return', () => {
   });
 
   it('returns a waiting conversation to the agent without claim', async () => {
+    await ensureAnaWaitingConversation();
     const db = createDb();
     const consoleService = new ConsoleService();
     const before = await consoleService.getConversation(IDS.convAna);
@@ -52,6 +76,7 @@ describe('API integration — console claim and return', () => {
   });
 
   it('claim vs return from waiting does not insert a false return system message', async () => {
+    await ensureAnaWaitingConversation();
     const db = createDb();
     const consoleService = new ConsoleService();
     await db

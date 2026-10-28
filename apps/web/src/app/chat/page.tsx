@@ -194,7 +194,14 @@ export default function ChatPage() {
             onScroll={onThreadScroll}
             className="scrollbar-none min-h-0 flex-1 overflow-y-auto pb-4"
           >
-            <div ref={threadContentRef} className="flex min-h-0 flex-col space-y-5">
+            <div
+              ref={threadContentRef}
+              className={
+                thread.messages.length === 0
+                  ? 'flex h-full min-h-full flex-col'
+                  : 'flex min-h-0 flex-col space-y-5'
+              }
+            >
               <ChatThreadView
                 messages={thread.messages}
                 payload={payload}

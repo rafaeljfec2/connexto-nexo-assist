@@ -84,9 +84,11 @@ export function ChatThreadView(props: ChatThreadViewProps) {
   return (
     <>
       {messages.length === 0 ? (
-        <p className="text-sm text-ink-3">
-          Nenhuma mensagem ainda. Pergunte sobre VPN, chamados ou abra um novo chamado.
-        </p>
+        <div className="flex min-h-[min(28rem,calc(100vh-16rem))] w-full flex-1 items-center justify-center px-4">
+          <p className="max-w-md text-center text-sm leading-relaxed text-ink-3">
+            Nenhuma mensagem ainda. Pergunte sobre VPN, chamados ou abra um novo chamado.
+          </p>
+        </div>
       ) : null}
 
       {messages.map((message: Message, index) => {

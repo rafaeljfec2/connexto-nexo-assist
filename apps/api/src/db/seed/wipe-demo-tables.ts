@@ -1,5 +1,6 @@
 import type { AppDatabase } from '../client';
 import {
+  conversationEvents,
   conversations,
   drafts,
   executionEvents,
@@ -15,6 +16,7 @@ import {
 
 export async function wipeDemoTables(db: AppDatabase): Promise<void> {
   await db.delete(executionEvents);
+  await db.delete(conversationEvents);
   await db.delete(drafts);
   await db.delete(messages);
   await db.delete(conversations);
