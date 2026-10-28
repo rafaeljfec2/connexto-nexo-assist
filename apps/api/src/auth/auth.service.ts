@@ -28,8 +28,9 @@ export class AuthService {
     }
 
     const token = newSessionToken();
-    const hours = rememberMe ? 24 * 7 : 12;
-    const expiresAt = new Date(Date.now() + hours * 60 * 60 * 1000);
+    const sessionTtlMs = 15 * 60 * 1000;
+    const expiresAt = new Date(Date.now() + sessionTtlMs);
+    void rememberMe;
     await this.db.insert(sessions).values({
       userId: user.id,
       tokenHash: hashToken(token),
