@@ -41,6 +41,7 @@ import {
   resolveListOnlyAssistantText,
   runAgentTool,
 } from '../tools/agent.tools';
+import { wrapToolResultForLlm } from '../tools/untrusted-data';
 import { NEXO_ASSIST_INSTRUCTIONS, runMastraTurn } from '../providers/mastra';
 import {
   tryHandleComplementStart,
@@ -202,7 +203,7 @@ async function runScriptedTurn(input: {
         role: 'tool',
         toolCallId: call.id,
         name: call.name,
-        content: JSON.stringify(toolResult),
+        content: JSON.stringify(wrapToolResultForLlm(call.name, toolResult)),
       });
     }
   }
