@@ -19,10 +19,11 @@ export class AuthController {
       parsed.password,
       parsed.rememberMe ?? false,
     );
+    const secure = process.env.NODE_ENV === 'production';
     res.cookie('nexo_session', result.token, {
       httpOnly: true,
       sameSite: 'lax',
-      secure: false,
+      secure,
       expires: result.expiresAt,
       path: '/',
     });
@@ -32,7 +33,8 @@ export class AuthController {
   @Post('logout')
   async logout(@Req() req: AuthedRequest, @Res({ passthrough: true }) res: Response) {
     await this.auth.logout(readSessionCookie(req));
-    res.clearCookie('nexo_session', { path: '/' });
+    const secure = process.env.NODE_ENV === 'production';
+    res.clearCookie('nexo_session', { path: '/', secure, sameSite: 'lax' });
     return { ok: true };
   }
 

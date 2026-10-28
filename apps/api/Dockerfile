@@ -31,6 +31,6 @@ COPY --from=builder --chown=app:app /app/deployed .
 RUN chmod +x ./docker-entrypoint.sh
 USER app
 EXPOSE 3001
-HEALTHCHECK --interval=10s --timeout=5s --start-period=60s --retries=12 \
+HEALTHCHECK --interval=10s --timeout=5s --start-period=120s --retries=12 \
   CMD node -e "fetch('http://127.0.0.1:3001/health/live').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 ENTRYPOINT ["./docker-entrypoint.sh"]

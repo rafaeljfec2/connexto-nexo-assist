@@ -1,0 +1,40 @@
+services:
+  connexto-nexo-assist-api:
+    image: ${IMAGE:-connexto-nexo-assist-api:local}
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    expose:
+      - '3001'
+    environment:
+      NODE_ENV: production
+      API_PORT: '3001'
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3001/health/live').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
+    networks:
+      - paasdeploy
+    labels:
+      paasdeploy.app: connexto-nexo-assist-api
+      traefik.enable: 'true'
+      traefik.docker.network: paasdeploy
+      traefik.http.routers.connexto-nexo-assist-api.priority: '1'
+      traefik.http.routers.connexto-nexo-assist-api.rule: Host(`api-nexo-assist.connexto.com.br`)
+      traefik.http.routers.connexto-nexo-assist-api.service: connexto-nexo-assist-api
+      traefik.http.routers.connexto-nexo-assist-api.tls: 'true'
+      traefik.http.routers.connexto-nexo-assist-api.tls.certresolver: letsencrypt
+      traefik.http.services.connexto-nexo-assist-api.loadbalancer.server.port: '3001'
+
+networks:
+  paasdeploy:
+    external: true

@@ -1,0 +1,29 @@
+{
+  "$schema": "https://raw.githubusercontent.com/rafaelcmd/connexto-vps-deploy-paas/main/paasdeploy.schema.json",
+  "name": "connexto-nexo-assist-api",
+  "runtime": "node",
+  "build": {
+    "type": "dockerfile",
+    "dockerfile": "./Dockerfile",
+    "context": "../.."
+  },
+  "port": 3000,
+  "hostPort": 3005,
+  "healthcheck": {
+    "path": "/health/live",
+    "interval": "10s",
+    "timeout": "5s",
+    "retries": 18,
+    "startPeriod": "120s",
+    "tls": false
+  },
+  "env": {
+    "TZ": "America/Sao_Paulo",
+    "NODE_ENV": "production",
+    "API_PORT": "3000"
+  },
+  "resources": {
+    "memory": "1g",
+    "cpu": "1.0"
+  }
+}

@@ -2,6 +2,9 @@
   "name": "@nexo-assist/api",
   "version": "0.0.1",
   "private": true,
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "dev": "tsx watch src/main.ts",
