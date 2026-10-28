@@ -56,8 +56,10 @@ API image runs migrate + idempotent seed on start.
 
 We run `@mastra/core` (`Agent` + `createTool` + `generate`) inside the Nest API process. The PRD prefers Mastra (or LangGraph.js); we picked Mastra because this product needs a short tool-calling loop, not a second orchestration graph — Nest already owns session, lease, HITL and persistence. LangGraph would duplicate that job for little gain here.
 
-- **Default `openrouter`** + free Nemotron: real chat for evaluators without burning budget.
-- **`openai`**: same path when you already have an OpenAI key/model.
+Provider default is **OpenRouter + a free Nemotron model** on purpose: the challenge allows any LLM, and this combo is the best cost/benefit for a public demo — evaluators get real multi-turn chat without us (or them) paying per token, while Mastra still routes a normal chat model. Paid OpenAI remains available if you prefer it; CI stays on `scripted` so proof does not depend on a vendor.
+
+- **Default `openrouter`** + free Nemotron: live agent UX at near-zero cost.
+- **`openai`**: same Mastra path when you already have an OpenAI key/model.
 - **`scripted`**: no network and no tokens — how CI proves the pipeline. Decision *quality* still comes from `@nexo-assist/domain` and integration tests, not from hoping the model is stable in CI.
 
 ## Acesso à aplicação
