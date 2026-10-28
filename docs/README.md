@@ -12,6 +12,7 @@ This folder holds deeper engineering notes. Nothing here replaces the README che
 | Troubleshooting local setup | [`local-development.md`](./local-development.md) |
 | System boundaries | [`architecture.md`](./architecture.md) |
 | Agent internals | [`agent.md`](./agent.md) |
+| Security / threat model | [`security/threat-model.md`](./security/threat-model.md) |
 | Requirement → code → test map | [`TRACEABILITY.md`](./TRACEABILITY.md) |
 
 ## Frozen product specs

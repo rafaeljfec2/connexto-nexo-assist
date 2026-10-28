@@ -134,12 +134,23 @@ PostgreSQL is the source of truth for users, sessions, conversations, messages, 
 
 Agent module layout and decision ADRs: [`docs/agent.md`](docs/agent.md), [`docs/architecture.md`](docs/architecture.md).
 
-### API hardening (demo / production edge)
+## Security — Security by Design
 
-- `helmet` sets baseline HTTP security headers (CSP left to the Next.js app).
-- `trust proxy` so rate limits see the real client IP behind Traefik/FlowDeploy.
-- Global `@nestjs/throttler` (120 req/min) with tighter caps on `POST /auth/login` (10/min) and `POST /conversations/current/messages` (30/min). Health and SSE streams skip the budget.
-- Prompt-injection hygiene: help/ticket free text is marked untrusted for the LLM; mutations still require HITL.
+Security was part of the architecture from the start. An AI agent can interpret untrusted content and call tools that touch real operations, so we assume **the model can be manipulated** and keep critical controls in the application—not only in the prompt.
+
+Main measures:
+
+- **Prompt-injection defense:** employee messages and retrieved help/ticket text are treated as data, never as authorization. Tool free text is marked `[untrusted_data]` on the LLM boundary; policy lives in system instructions + server code.
+- **Backend authorization:** ticket access and mutations are enforced by the API (`EmployeeGuard` / `AnalystGuard`, owner checks on `TicketGateway`), independent of what the model suggests.
+- **Least privilege:** the agent only gets the tools it needs (`search_help`, `list_my_tickets`, `get_ticket`, `prepare_draft`). Create / update / reopen / transfer are not model tools.
+- **Write confirmation (HITL):** ticket writes require an explicit confirm of the exact draft version shown to the user.
+- **Privacy / isolation:** employees cannot read another employee’s tickets (seed fixture `INC-20150`).
+- **Edge hardening:** `helmet`, `trust proxy`, and `@nestjs/throttler` (tighter on login and message POST; health/SSE skipped).
+- **Security-oriented tests:** privacy isolation, role guards, HITL rejection of incomplete creates, out-of-IT redirect, and untrusted-data wrapping for tool payloads.
+
+Central premise: do not rely on the LLM behaving. Contain blast radius in Nest + domain + HITL.
+
+Threats and controls: [`docs/security/threat-model.md`](docs/security/threat-model.md).
 
 ## Product readings documented from the PRD
 
