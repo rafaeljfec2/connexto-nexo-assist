@@ -85,6 +85,49 @@ describe('API integration — agent HITL drafts', () => {
     expect(feedback?.content).toContain(`Criei o chamado ${ticketNumber}`);
   });
 
+  it('rejects confirm when create draft is missing required fields', async () => {
+    const db = createDb();
+    const gateway = TicketGateway.withDb(db);
+    const orchestrator = new AgentOrchestrator(gateway, new PolicyEngine(), new UsageGuard());
+    orchestrator.setProvider(new ScriptedLlmProvider());
+
+    const [conv] = await db
+      .insert(conversations)
+      .values({ employeeId: IDS.ana, status: 'with_agent', employeeMessageCount: 0 })
+      .returning();
+
+    const [draft] = await db
+      .insert(drafts)
+      .values({
+        conversationId: conv!.id,
+        version: 1,
+        action: 'create',
+        payload: {
+          action: 'create',
+          title: 'Incomplete draft',
+          description: 'missing type and priority',
+          category: 'software',
+        },
+        status: 'pending',
+      })
+      .returning();
+
+    await expect(
+      orchestrator.confirmDraft({
+        employeeId: IDS.ana,
+        conversationId: conv!.id,
+        draftId: draft!.id,
+        version: 1,
+        confirm: true,
+      }),
+    ).rejects.toThrow(/tipo|prioridade|afetado/i);
+
+    const matches = (await db.select().from(tickets)).filter(
+      (ticket) => ticket.title === 'Incomplete draft',
+    );
+    expect(matches).toHaveLength(0);
+  });
+
   it('confirming the same draft twice does not create a second ticket', async () => {
     const db = createDb();
     const gateway = TicketGateway.withDb(db);
@@ -108,6 +151,7 @@ describe('API integration — agent HITL drafts', () => {
           description: 'same draft twice',
           category: 'software',
           type: 'incident',
+          priority: 'low',
           affectedScope: 'self',
           workStopped: false,
           sameDayCommitment: false,

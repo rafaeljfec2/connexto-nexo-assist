@@ -1,7 +1,13 @@
 import { UnprocessableEntityException } from '@nestjs/common';
 import { and, desc, eq } from 'drizzle-orm';
-import { computeDueAt, evaluateConfirmation } from '@nexo-assist/domain';
-import type { TicketPriority } from '@nexo-assist/contracts';
+import {
+  assertCreateDraftComplete,
+  computeDueAt,
+  deriveConfidence,
+  evaluateConfirmation,
+  formatMissingCreateFields,
+} from '@nexo-assist/domain';
+import type { TicketCategory, TicketPriority, TicketType } from '@nexo-assist/contracts';
 import { randomUUID } from 'node:crypto';
 import type { AppDatabase } from '../db/client';
 import { drafts, executionEvents, messages, operations } from '../db/schema';
@@ -103,16 +109,23 @@ export async function applyDraft(
   const operationId = `draft:${draft.id}:v${draft.version}`;
   let mutation: Record<string, unknown>;
   if (draft.action === 'create') {
+    const completeness = assertCreateDraftComplete(draft.payload);
+    if (!completeness.complete) {
+      throw new UnprocessableEntityException(
+        formatMissingCreateFields(completeness.missing) ||
+          'Draft create payload is incomplete.',
+      );
+    }
     const priority = policy.decidePriorityFromDraft(draft.payload);
     if (!priority.priority) {
       throw new UnprocessableEntityException('Priority still needs clarification.');
     }
     mutation = await tickets.create({
       employeeId,
-      type: (draft.payload['type'] as 'incident' | 'request') ?? 'incident',
-      category: (draft.payload['category'] as never) ?? 'other',
-      title: String(draft.payload['title'] ?? 'Chamado'),
-      description: String(draft.payload['description'] ?? ''),
+      type: draft.payload['type'] as TicketType,
+      category: draft.payload['category'] as TicketCategory,
+      title: String(draft.payload['title']).trim(),
+      description: String(draft.payload['description']).trim(),
       errorCode: (draft.payload['errorCode'] as string | null) ?? null,
       priority: priority.priority,
       operationId,
@@ -185,6 +198,16 @@ export async function confirmDraftAction(
 
   if (draft.status !== 'pending') {
     throw new UnprocessableEntityException('Draft is no longer pending.');
+  }
+
+  if (input.confirm === true && draft.action === 'create') {
+    const completeness = assertCreateDraftComplete(draft.payload);
+    if (!completeness.complete) {
+      throw new UnprocessableEntityException(
+        formatMissingCreateFields(completeness.missing) ||
+          'Draft create payload is incomplete.',
+      );
+    }
   }
 
   const decision = evaluateConfirmation({
@@ -285,6 +308,13 @@ async function persistDraftConfirmFeedback(
       rule: input.rule,
       result: input.result,
       justification: input.justification,
+      confidence: deriveConfidence([
+        {
+          rule: input.rule,
+          result: input.result,
+          tool: null,
+        },
+      ]),
     });
     await eventsService.appendInTx(tx, {
       conversationId: input.conversationId,
@@ -338,7 +368,6 @@ export async function handlePrepareDraft(input: {
     draftPayload['priority'] = priority.priority;
     draftPayload['dueAt'] = dueAt.toISOString();
   }
-  const preparedDraft = await saveDraft(input.db, input.conversationId, draftPayload);
   input.events.push({
     intent: 'create',
     tool: null,
@@ -362,35 +391,53 @@ export async function handlePrepareDraft(input: {
     assistantText =
       priority.clarificationQuestion ??
       'Preciso de mais informações para definir a prioridade.';
-  } else {
-    const open = await input.tickets.listOpenForDuplicity(input.employeeId);
-    const dup = input.policy.detectDuplicates(
-      {
-        category: (input.args['category'] as never) ?? null,
-        title: String(input.args['title'] ?? ''),
-        description: String(input.args['description'] ?? ''),
-        errorCode: (input.args['errorCode'] as string | null) ?? null,
-      },
-      toDuplicateCandidates(open),
-    );
+    return { preparedDraft: null, assistantText, transferRequested };
+  }
+
+  const completeness = assertCreateDraftComplete(draftPayload);
+  if (!completeness.complete) {
     input.events.push({
       intent: 'create',
       tool: null,
-      rule: dup.rule,
-      result: dup.match,
-      justification: `Duplicity score ${dup.score}`,
+      rule: 'draft.create_incomplete',
+      result: completeness.missing.join(','),
+      justification: 'Create draft missing required Annex A fields.',
     });
-    if (dup.match === 'strong' || dup.match === 'multiple' || dup.match === 'ambiguous') {
-      assistantText = `Encontrei possível duplicidade (${dup.match}). Candidatos: ${dup.candidates
-        .map((c) => c.number)
-        .join(', ')}. Confirme se deseja complementar ou criar mesmo assim.`;
-    } else {
-      const versionLabel = preparedDraft ? preparedDraft.version : '?';
-      assistantText =
-        priority.priority === 'high' && enrichedSignals.sameDayCommitment === true
-          ? `Coloquei prioridade alta por causa do compromisso no mesmo dia. Confira o rascunho versão ${versionLabel} antes de eu criar:`
-          : `Preparei o rascunho versão ${versionLabel} com prioridade ${priority.priority}. Confirme para criar.`;
-    }
+    return {
+      preparedDraft: null,
+      assistantText: formatMissingCreateFields(completeness.missing),
+      transferRequested: false,
+    };
+  }
+
+  const preparedDraft = await saveDraft(input.db, input.conversationId, draftPayload);
+  const open = await input.tickets.listOpenForDuplicity(input.employeeId);
+  const dup = input.policy.detectDuplicates(
+    {
+      category: (input.args['category'] as never) ?? null,
+      title: String(input.args['title'] ?? ''),
+      description: String(input.args['description'] ?? ''),
+      errorCode: (input.args['errorCode'] as string | null) ?? null,
+    },
+    toDuplicateCandidates(open),
+  );
+  input.events.push({
+    intent: 'create',
+    tool: null,
+    rule: dup.rule,
+    result: dup.match,
+    justification: `Duplicity score ${dup.score}`,
+  });
+  if (dup.match === 'strong' || dup.match === 'multiple' || dup.match === 'ambiguous') {
+    assistantText = `Encontrei possível duplicidade (${dup.match}). Candidatos: ${dup.candidates
+      .map((c) => c.number)
+      .join(', ')}. Confirme se deseja complementar ou criar mesmo assim.`;
+  } else {
+    const versionLabel = preparedDraft ? preparedDraft.version : '?';
+    assistantText =
+      priority.priority === 'high' && enrichedSignals.sameDayCommitment === true
+        ? `Coloquei prioridade alta por causa do compromisso no mesmo dia. Confira o rascunho versão ${versionLabel} antes de eu criar:`
+        : `Preparei o rascunho versão ${versionLabel} com prioridade ${priority.priority}. Confirme para criar.`;
   }
 
   return { preparedDraft, assistantText, transferRequested };
