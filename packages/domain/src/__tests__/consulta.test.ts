@@ -4,6 +4,7 @@ import {
   MEDIUM_SLA_BUSINESS_DAYS,
   buildOverdueConsultaPrompt,
   buildTicketListIntro,
+  formatCategoryLabel,
   formatOpenedAtPt,
   formatPriorityPt,
   formatRelativeUpdatePt,
@@ -95,5 +96,12 @@ describe('Consulta de chamado frozen rules (C1–C9)', () => {
     expect(buildTicketListIntro(1)).toBe(
       'Você tem 1 chamado aberto. Sobre qual deles quer saber?',
     );
+  });
+
+  it('formats Annex A category labels including Rede e VPN and E-mail (AA-2)', () => {
+    expect(formatCategoryLabel('network')).toBe('Rede e VPN');
+    expect(formatCategoryLabel('email')).toBe('E-mail');
+    expect(formatCategoryLabel('access')).toBe('Acesso');
+    expect(formatCategoryLabel('hardware', 'Notebook lento')).toBe('Hardware › Notebook');
   });
 });

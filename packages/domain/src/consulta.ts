@@ -96,8 +96,9 @@ export function formatCategoryLabel(category: string, title = ''): string {
   const map: Record<string, string> = {
     hardware: 'Hardware',
     access: 'Acesso',
-    network: 'Rede',
+    network: 'Rede e VPN',
     software: 'Software',
+    email: 'E-mail',
     other: 'Outros',
   };
   return map[normalized] ?? category;

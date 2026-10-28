@@ -5,3 +5,6 @@ export * from './duplicity';
 export * from './transitions';
 export * from './confirmation';
 export * from './consulta';
+export * from './draft-complete';
+export * from './out-of-scope';
+export * from './confidence';
