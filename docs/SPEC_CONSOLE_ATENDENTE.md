@@ -25,7 +25,7 @@ Frozen UI and behavior obligations for the Pencil “Atendente — Conversas” 
 |---|---|
 | A1 | Claim only succeeds when status is `waiting_analyst` and `analystId` is null (exclusive) |
 | A2 | Return from `waiting_analyst` sets `with_agent` without requiring a prior claim; conditional UPDATE must succeed before inserting the system message |
-| A3 | Return/close from `with_analyst` require the assigned analyst |
+| A3 | Return/close from `with_analyst` require the assigned analyst; close also resolves the featured linked ticket when one is identified |
 | A4 | Analyst messages allowed only while `with_analyst` for the assigned analyst |
 
 ## Seed anchors

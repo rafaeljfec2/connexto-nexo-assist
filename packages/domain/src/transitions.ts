@@ -69,3 +69,21 @@ export function canTransferTicket(status: TicketStatus): TransitionResult {
 export function statusAfterTransfer(): TicketStatus {
   return 'transferred';
 }
+
+const RESOLVABLE: ReadonlySet<TicketStatus> = new Set([
+  'waiting_analyst',
+  'in_progress',
+  'approved',
+  'transferred',
+]);
+
+export function canResolve(status: TicketStatus): TransitionResult {
+  if (RESOLVABLE.has(status)) {
+    return { allowed: true, rule: 'transition.resolve_allowed' };
+  }
+  return {
+    allowed: false,
+    rule: 'transition.resolve_denied',
+    reason: 'Only open tickets can be resolved.',
+  };
+}

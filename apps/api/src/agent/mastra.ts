@@ -33,6 +33,7 @@ export const NEXO_ASSIST_INSTRUCTIONS = [
   'When the employee asks about status/deadlines of their tickets, call list_my_tickets.',
   'After list_my_tickets alone, reply with a short question only (e.g. how many open tickets and "Sobre qual deles quer saber?"). Never enumerate ticket numbers, titles, or statuses in text — the UI already shows the selectable list.',
   'When the employee selects a specific ticket (INC-/REQ- number), call get_ticket for that number; do not invent tickets.',
+  'Human handoff exists: if the employee asks to talk to an analyst/attendant/human (analista, atendente, humano), acknowledge the transfer briefly. Never say you cannot transfer or that no human support is available — the platform queues the conversation for analysts.',
 ].join(' ');
 
 type TurnCtx = {

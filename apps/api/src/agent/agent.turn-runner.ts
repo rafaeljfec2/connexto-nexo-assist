@@ -19,7 +19,10 @@ import {
   type LlmMessage,
   type LlmProvider,
 } from './llm.provider';
-import { requestsAnalystTransfer } from './transfer-intent';
+import {
+  requestsAnalystTransfer,
+  TRANSFER_CONFIRMATION_TEXT,
+} from './transfer-intent';
 import { getPendingDraft, handlePrepareDraft, type DraftRow } from './agent.draft-store';
 import {
   AGENT_TOOLS,
@@ -342,18 +345,21 @@ export async function runAgentTurn(input: {
     const preparedDraft = loopResult.preparedDraft;
     const transferRequested = loopResult.transferRequested;
 
-    if (requestsAnalystTransfer(input.content) || transferRequested) {
+    const employeeAskedTransfer = requestsAnalystTransfer(input.content);
+    if (employeeAskedTransfer || transferRequested) {
       transferToWaiting = true;
       events.push({
-        intent: transferRequested ? 'critical' : 'talk_to_analyst',
+        intent: transferRequested && !employeeAskedTransfer ? 'critical' : 'talk_to_analyst',
         tool: null,
         rule: 'transfer.conversation',
         result: 'waiting_analyst',
         justification: 'Conversation transferred to analyst queue.',
       });
-      assistantText =
-        assistantText ||
-        'Transferi você para a fila de analistas. O agente fica pausado até o atendimento humano.';
+      // Always overwrite LLM text — models must not invent "I cannot transfer".
+      assistantText = employeeAskedTransfer
+        ? TRANSFER_CONFIRMATION_TEXT
+        : assistantText ||
+          'Transferi você para a fila de analistas. O agente fica pausado até o atendimento humano.';
     }
 
     await input.persistAgentOutcome({

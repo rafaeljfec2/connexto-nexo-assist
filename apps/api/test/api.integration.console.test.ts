@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { closeDb, createDb } from '../src/db/client';
-import { conversations } from '../src/db/schema';
+import { conversations, tickets } from '../src/db/schema';
 import { IDS } from '../src/db/seed';
 import { ConsoleService } from '../src/console/console.service';
 import { setupIntegrationDb } from './helpers/db';
@@ -109,6 +109,42 @@ describe('API integration — console claim and return', () => {
       throw new Error(`Unexpected status after race: ${after.conversation.status}`);
     }
 
+    await db
+      .update(conversations)
+      .set({ status: 'waiting_analyst', analystId: null, updatedAt: new Date() })
+      .where(eq(conversations.id, IDS.convAna));
+  });
+
+  it('close resolves the featured linked ticket', async () => {
+    await ensureAnaWaitingConversation();
+    const db = createDb();
+    const consoleService = new ConsoleService();
+
+    await db
+      .update(tickets)
+      .set({
+        status: 'waiting_analyst',
+        resolvedAt: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(tickets.number, 'INC-20311'));
+
+    await consoleService.claim(IDS.convAna, IDS.rafael);
+    const closed = await consoleService.close(IDS.convAna, IDS.rafael);
+
+    expect(closed.conversation.status).toBe('closed');
+    const linked = closed.tickets.find((ticket) => ticket.number === 'INC-20311');
+    expect(linked?.status).toBe('resolved');
+    expect(linked?.lastHistory?.note).toMatch(/resolvido ao encerrar/i);
+
+    await db
+      .update(tickets)
+      .set({
+        status: 'waiting_analyst',
+        resolvedAt: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(tickets.number, 'INC-20311'));
     await db
       .update(conversations)
       .set({ status: 'waiting_analyst', analystId: null, updatedAt: new Date() })

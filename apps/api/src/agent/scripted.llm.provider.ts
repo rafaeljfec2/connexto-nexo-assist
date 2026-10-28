@@ -12,6 +12,10 @@ import type {
   LlmStepResult,
   LlmToolDefinition,
 } from './llm.provider';
+import {
+  requestsAnalystTransfer,
+  TRANSFER_CONFIRMATION_TEXT,
+} from './transfer-intent';
 
 function lastUserContent(messages: readonly LlmMessage[]): string {
   return [...messages].reverse().find((m) => m.role === 'user')?.content ?? '';
@@ -421,13 +425,9 @@ export class ScriptedLlmProvider implements LlmProvider {
       };
     }
 
-    if (
-      text.includes('quero falar com um analista') ||
-      text.includes('falar com um analista')
-    ) {
+    if (requestsAnalystTransfer(lastUser)) {
       return {
-        content:
-          'Entendi que você quer falar com um analista. Vou transferir esta conversa para a fila humana.',
+        content: TRANSFER_CONFIRMATION_TEXT,
         toolCalls: [],
       };
     }

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   canComplement,
   canReopen,
+  canResolve,
   canTransferTicket,
   nextStatusAfterReopen,
 } from '../transitions.js';
@@ -35,6 +36,12 @@ describe('ticket transitions', () => {
 
   it('allows transfer of open tickets', () => {
     expect(canTransferTicket('waiting_analyst').allowed).toBe(true);
+  });
+
+  it('allows resolve for open statuses and denies resolved', () => {
+    expect(canResolve('in_progress').allowed).toBe(true);
+    expect(canResolve('waiting_analyst').allowed).toBe(true);
+    expect(canResolve('resolved').allowed).toBe(false);
   });
 
   it('denies transfer of resolved tickets', () => {

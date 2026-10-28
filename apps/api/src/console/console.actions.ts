@@ -7,6 +7,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import type { AppDatabase } from '../db/client';
 import { conversations, messages } from '../db/schema';
 import type { ConversationEventsService } from '../events/conversation-events.service';
+import { resolveLinkedTicketOnClose } from './console.resolve-on-close';
 
 export type ConsoleActionDeps = {
   db: AppDatabase;
@@ -229,12 +230,23 @@ export async function closeConversation(
     if (updated.length === 0) {
       throw new ConflictException('Conversation could not be closed.');
     }
+
+    const resolvedNumber = await resolveLinkedTicketOnClose(tx, {
+      conversationId,
+      employeeId: current.employeeId,
+      summary: current.summary,
+    });
+
     await appendSystemMessageAndConversationUpdated(
       events,
       tx,
       conversationId,
       'Atendimento encerrado.',
-      { status: 'closed', analystId },
+      {
+        status: 'closed',
+        analystId,
+        ...(resolvedNumber ? { resolvedTicketNumber: resolvedNumber } : {}),
+      },
     );
   });
 }
