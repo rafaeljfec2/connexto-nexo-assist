@@ -83,6 +83,8 @@ export const conversations = pgTable('conversations', {
   employeeMessageCount: integer('employee_message_count').notNull().default(0),
   summary: text('summary'),
   busyUntil: timestamp('busy_until', { withTimezone: true }),
+  activeExecutionId: uuid('active_execution_id'),
+  lastEventSeq: integer('last_event_seq').notNull().default(0),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
@@ -96,9 +98,35 @@ export const messages = pgTable(
       .references(() => conversations.id),
     role: text('role').notNull(),
     content: text('content').notNull(),
+    clientMessageId: uuid('client_message_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('messages_conversation_idx').on(t.conversationId)],
+  (t) => [
+    index('messages_conversation_idx').on(t.conversationId),
+    uniqueIndex('messages_conversation_client_message_uidx').on(
+      t.conversationId,
+      t.clientMessageId,
+    ),
+  ],
+);
+
+export const conversationEvents = pgTable(
+  'conversation_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    conversationId: uuid('conversation_id')
+      .notNull()
+      .references(() => conversations.id),
+    seq: integer('seq').notNull(),
+    type: text('type').notNull(),
+    version: integer('version').notNull().default(1),
+    payload: jsonb('payload').notNull().$type<Record<string, unknown>>(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('conversation_events_conversation_seq_uidx').on(t.conversationId, t.seq),
+    index('conversation_events_conversation_idx').on(t.conversationId),
+  ],
 );
 
 export const drafts = pgTable('drafts', {
