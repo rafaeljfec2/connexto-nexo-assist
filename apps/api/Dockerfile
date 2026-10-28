@@ -30,7 +30,7 @@ RUN addgroup -S app && adduser -S app -G app
 COPY --from=builder --chown=app:app /app/deployed .
 RUN chmod +x ./docker-entrypoint.sh
 USER app
-EXPOSE 3001
+EXPOSE 3000
 HEALTHCHECK --interval=10s --timeout=5s --start-period=120s --retries=12 \
-  CMD node -e "fetch('http://127.0.0.1:3001/health/live').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.API_PORT||'3000')+'/health/live').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 ENTRYPOINT ["./docker-entrypoint.sh"]
