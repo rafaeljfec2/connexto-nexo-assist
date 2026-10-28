@@ -6,6 +6,7 @@ export type TurnEvent = {
   readonly rule: string | null;
   readonly result: string;
   readonly justification: string;
+  readonly confidence?: 'high' | 'medium' | 'low' | null;
 };
 
 export type PersistAgentOutcome = (input: {

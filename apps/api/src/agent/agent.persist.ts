@@ -1,4 +1,5 @@
 import { and, eq } from 'drizzle-orm';
+import { deriveConfidence } from '@nexo-assist/domain';
 import { conversations, executionEvents, messages } from '../db/schema';
 import type { ConversationEventsService } from '../events/conversation-events.service';
 import {
@@ -61,6 +62,7 @@ export async function persistAgentOutcome(
       throw new Error('Failed to persist agent message');
     }
 
+    const turnConfidence = deriveConfidence(input.events);
     for (const event of input.events) {
       logBusinessEvent({
         conversationId: input.conversationId,
@@ -76,6 +78,7 @@ export async function persistAgentOutcome(
         rule: event.rule,
         result: event.result,
         justification: event.justification,
+        confidence: event.confidence ?? turnConfidence,
       });
     }
 

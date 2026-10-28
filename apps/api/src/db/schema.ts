@@ -154,6 +154,7 @@ export const executionEvents = pgTable('execution_events', {
   rule: text('rule'),
   result: text('result').notNull(),
   justification: text('justification').notNull(),
+  confidence: text('confidence'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
