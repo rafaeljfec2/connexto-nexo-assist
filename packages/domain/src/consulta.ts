@@ -103,6 +103,18 @@ export function formatCategoryLabel(category: string, title = ''): string {
   return map[normalized] ?? category;
 }
 
+/**
+ * Figma Consulta list turn (C2): UI TicketPicker already shows numbers/titles —
+ * agent text must stay a short intro (never enumerate tickets).
+ */
+export function buildTicketListIntro(openCount: number): string {
+  const n = Math.max(0, openCount);
+  if (n === 1) {
+    return 'Você tem 1 chamado aberto. Sobre qual deles quer saber?';
+  }
+  return `Você tem ${n} chamados abertos. Sobre qual deles quer saber?`;
+}
+
 /** Prototype overdue follow-up under the detail card (C5/C6). */
 export function buildOverdueConsultaPrompt(input: {
   readonly updatedAt: Date;

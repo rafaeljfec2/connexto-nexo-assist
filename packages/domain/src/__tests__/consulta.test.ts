@@ -3,6 +3,7 @@ import {
   CONSULTA_RULE_IDS,
   MEDIUM_SLA_BUSINESS_DAYS,
   buildOverdueConsultaPrompt,
+  buildTicketListIntro,
   formatOpenedAtPt,
   formatPriorityPt,
   formatRelativeUpdatePt,
@@ -84,6 +85,15 @@ describe('Consulta de chamado frozen rules (C1–C9)', () => {
       }),
     ).toBe(
       'Está sem atualização há 5 dias, acima do prazo de 3 dias úteis para prioridade média. Quer que eu chame um analista?',
+    );
+  });
+
+  it('builds short list intro without enumerating tickets (C2)', () => {
+    expect(buildTicketListIntro(3)).toBe(
+      'Você tem 3 chamados abertos. Sobre qual deles quer saber?',
+    );
+    expect(buildTicketListIntro(1)).toBe(
+      'Você tem 1 chamado aberto. Sobre qual deles quer saber?',
     );
   });
 });

@@ -1,4 +1,5 @@
 export * from './priority';
+export * from './priority-signals';
 export * from './sla';
 export * from './duplicity';
 export * from './transitions';
