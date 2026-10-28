@@ -7,6 +7,7 @@ import type { AppDatabase } from '../db/client';
 import { helpArticles } from '../db/schema';
 import type { TicketGateway } from '../tickets/ticket.gateway';
 import type { LlmToolDefinition } from './llm.provider';
+import { parseAffectedScope } from './impact-answer';
 import type { TurnEvent } from './agent.types';
 
 export const AGENT_TOOLS: LlmToolDefinition[] = [
@@ -161,7 +162,12 @@ export function resolveListOnlyAssistantText(input: {
   readonly events: readonly TurnEvent[];
   readonly listedOpenCount: number | null;
   readonly fallback: string;
+  /** When set, skip override for impact-chip answers mid Novo chamado. */
+  readonly userContent?: string;
 }): string {
+  if (input.userContent && parseAffectedScope(input.userContent)) {
+    return input.fallback;
+  }
   const tools = new Set(
     input.events.map((event) => event.tool).filter((tool): tool is string => Boolean(tool)),
   );

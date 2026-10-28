@@ -1,10 +1,25 @@
 import { eq } from 'drizzle-orm';
-import { evaluateConfirmation } from '@nexo-assist/domain';
+import {
+  inferPrioritySignalsFromText,
+  evaluateConfirmation,
+} from '@nexo-assist/domain';
 import type { AppDatabase } from '../db/client';
 import { drafts } from '../db/schema';
 import type { TicketGateway } from '../tickets/ticket.gateway';
 import type { PolicyEngine } from './policy.engine';
-import { applyDraft, formatDraftConfirmFeedback, type DraftRow } from './agent.draft-store';
+import {
+  applyDraft,
+  formatDraftConfirmFeedback,
+  handlePrepareDraft,
+  type DraftRow,
+} from './agent.draft-store';
+import {
+  findPriorProblemReport,
+  inferCategoryFromText,
+  lastAssistantAskedImpact,
+  parseAffectedScope,
+  titleFromProblemReport,
+} from './impact-answer';
 import type { FailExecution, PersistAgentOutcome, TurnEvent } from './agent.types';
 export async function tryHandleDraftConfirmation(input: {
   readonly db: AppDatabase;
@@ -145,6 +160,76 @@ export async function tryHandleDraftConfirmation(input: {
   }
 
   return false;
+}
+
+/**
+ * Novo chamado: after "Quem está sendo afetado?", chip answers must continue create —
+ * never fall through to Consulta list_my_tickets / list intro.
+ */
+export async function tryHandleImpactAnswer(input: {
+  readonly db: AppDatabase;
+  readonly tickets: TicketGateway;
+  readonly policy: PolicyEngine;
+  readonly conversationId: string;
+  readonly employeeId: string;
+  readonly content: string;
+  readonly executionId: string;
+  readonly pendingDraft: DraftRow | null;
+  readonly recentMessages: readonly { readonly role: string; readonly content: string }[];
+  readonly persistAgentOutcome: PersistAgentOutcome;
+}): Promise<boolean> {
+  if (input.pendingDraft) {
+    return false;
+  }
+  const scope = parseAffectedScope(input.content);
+  if (!scope || !lastAssistantAskedImpact(input.recentMessages)) {
+    return false;
+  }
+
+  const problem =
+    findPriorProblemReport(input.recentMessages, input.content) ?? input.content;
+  const signals = inferPrioritySignalsFromText(`${problem}\n${input.content}`);
+  const events: TurnEvent[] = [
+    {
+      intent: 'create',
+      tool: 'prepare_draft',
+      rule: null,
+      result: 'ok',
+      justification: 'Prepared create draft from impact-scope answer.',
+    },
+  ];
+  const outcome = await handlePrepareDraft({
+    db: input.db,
+    policy: input.policy,
+    tickets: input.tickets,
+    conversationId: input.conversationId,
+    employeeId: input.employeeId,
+    args: {
+      action: 'create',
+      title: titleFromProblemReport(problem),
+      description: problem,
+      category: inferCategoryFromText(problem),
+      type: 'incident',
+      affectedScope: scope,
+      workStopped: signals.workStopped,
+      sameDayCommitment: signals.sameDayCommitment,
+      hasAlternative: signals.hasAlternative,
+    },
+    events,
+  });
+
+  await input.persistAgentOutcome({
+    conversationId: input.conversationId,
+    executionId: input.executionId,
+    agentContent:
+      outcome.assistantText ??
+      'Preciso de mais informações para montar o rascunho. Pode detalhar o impacto?',
+    events,
+    draft: outcome.preparedDraft,
+    status: 'with_agent',
+    summary: null,
+  });
+  return true;
 }
 
 /**

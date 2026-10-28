@@ -2,14 +2,16 @@ import {
   buildTicketListIntro,
   inferPrioritySignalsFromText,
 } from '@nexo-assist/domain';
+import {
+  lastAssistantAskedImpact,
+  parseAffectedScope,
+} from './impact-answer';
 import type {
   LlmMessage,
   LlmProvider,
   LlmStepResult,
   LlmToolDefinition,
 } from './llm.provider';
-
-type AffectedScope = 'self' | 'team' | 'company' | 'unknown';
 
 function lastUserContent(messages: readonly LlmMessage[]): string {
   return [...messages].reverse().find((m) => m.role === 'user')?.content ?? '';
@@ -30,38 +32,8 @@ function historyMentionsVpn(messages: readonly LlmMessage[]): boolean {
 }
 
 function assistantAskedImpact(messages: readonly LlmMessage[]): boolean {
-  const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
-  if (!lastAssistant) {
-    return false;
-  }
-  const normalized = lastAssistant.content.toLowerCase();
-  return (
-    normalized.includes('quem está sendo afetado') ||
-    normalized.includes('quem esta sendo afetado') ||
-    normalized.includes('quem está afetado')
-  );
-}
-
-function parseAffectedScope(text: string): AffectedScope | null {
-  const normalized = text.toLowerCase();
-  if (
-    normalized.includes('só eu') ||
-    normalized.includes('so eu') ||
-    normalized.includes('somente eu') ||
-    normalized.includes('apenas eu')
-  ) {
-    return 'self';
-  }
-  if (normalized.includes('minha equipe') || normalized.includes('meu time')) {
-    return 'team';
-  }
-  if (normalized.includes('toda a empresa') || normalized.includes('empresa toda')) {
-    return 'company';
-  }
-  if (normalized.includes('não sei') || normalized.includes('nao sei')) {
-    return 'unknown';
-  }
-  return null;
+  // Scripted LLM messages are oldest-first; convert to newest-first for the helper.
+  return lastAssistantAskedImpact([...messages].reverse());
 }
 
 function detectSameDayCommitment(text: string): boolean {

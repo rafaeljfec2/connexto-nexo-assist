@@ -47,4 +47,25 @@ describe('resolveListOnlyAssistantText', () => {
       }),
     ).toBe(fallback);
   });
+
+  it('does not replace text when the user answered an impact chip', () => {
+    const fallback =
+      'Isso te impede de trabalhar agora, ou você tem um compromisso no mesmo dia?';
+    expect(
+      resolveListOnlyAssistantText({
+        events: [
+          {
+            intent: null,
+            tool: 'list_my_tickets',
+            rule: null,
+            result: 'ok',
+            justification: 'Executed list_my_tickets',
+          },
+        ],
+        listedOpenCount: 4,
+        fallback,
+        userContent: 'Só eu',
+      }),
+    ).toBe(fallback);
+  });
 });

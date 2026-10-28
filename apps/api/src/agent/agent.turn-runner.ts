@@ -32,6 +32,7 @@ import { NEXO_ASSIST_INSTRUCTIONS, runMastraTurn } from './mastra';
 import {
   tryHandleComplementStart,
   tryHandleDraftConfirmation,
+  tryHandleImpactAnswer,
 } from './agent.turn-confirm';
 import type { FailExecution, PersistAgentOutcome, TurnEvent } from './agent.types';
 
@@ -192,11 +193,13 @@ async function runScriptedTurn(input: {
     }
   }
 
+  const lastUser = [...llmMessages].reverse().find((m) => m.role === 'user');
   return {
     assistantText: resolveListOnlyAssistantText({
       events: input.events,
       listedOpenCount,
       fallback: assistantText || 'Como posso ajudar?',
+      userContent: lastUser?.content,
     }),
     preparedDraft,
     transferRequested,
@@ -271,6 +274,22 @@ export async function runAgentTurn(input: {
       .where(eq(messages.conversationId, conversation.id))
       .orderBy(desc(messages.createdAt))
       .limit(MAX_CONTEXT_MESSAGES);
+
+    const handledImpact = await tryHandleImpactAnswer({
+      db: input.db,
+      tickets: input.tickets,
+      policy: input.policy,
+      conversationId: input.conversationId,
+      employeeId: input.employeeId,
+      content: input.content,
+      executionId: input.executionId,
+      pendingDraft,
+      recentMessages: history,
+      persistAgentOutcome: input.persistAgentOutcome,
+    });
+    if (handledImpact) {
+      return;
+    }
 
     const llmMessages: LlmMessage[] = [
       { role: 'system', content: NEXO_ASSIST_INSTRUCTIONS },
