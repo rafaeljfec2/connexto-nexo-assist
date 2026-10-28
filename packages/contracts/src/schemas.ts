@@ -120,6 +120,9 @@ export const DraftSchema = z.object({
 });
 export type Draft = z.infer<typeof DraftSchema>;
 
+export const ConfidenceLevelSchema = z.enum(['high', 'medium', 'low']);
+export type ConfidenceLevel = z.infer<typeof ConfidenceLevelSchema>;
+
 export const ExecutionEventSchema = z.object({
   id: z.string().uuid(),
   conversationId: z.string().uuid(),
@@ -129,6 +132,7 @@ export const ExecutionEventSchema = z.object({
   rule: z.string().nullable(),
   result: z.string(),
   justification: z.string(),
+  confidence: ConfidenceLevelSchema.nullable().optional(),
   createdAt: z.string().datetime(),
 });
 export type ExecutionEvent = z.infer<typeof ExecutionEventSchema>;
