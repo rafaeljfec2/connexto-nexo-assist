@@ -151,7 +151,7 @@ export function formatCategoryPt(category: string): string {
     hardware: 'Hardware',
     software: 'Software',
     access: 'Acesso',
-    network: 'Rede',
+    network: 'Rede e VPN',
     email: 'E-mail',
   };
   return map[category.toLowerCase()] ?? category;

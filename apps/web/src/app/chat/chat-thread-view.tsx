@@ -269,6 +269,14 @@ export function ChatThreadView(props: ChatThreadViewProps) {
         const suppressBubbleForDraft = isLastAgent && Boolean(payload?.draft);
         const showChoices =
           showImpactChoices && index === lastAgentIndex && !isEmployee && !isAnalyst;
+        const showUnsureOffer =
+          isLastAgent &&
+          !isEmployee &&
+          !isAnalyst &&
+          !payload?.draft &&
+          !showChoices &&
+          (latestTurnEvents.some((event) => event.rule === 'transfer.offer_unsure') ||
+            /chame um analista\?/i.test(message.content));
         const showGenericChips =
           isLastAgent &&
           !showDetailCard &&
@@ -314,6 +322,20 @@ export function ChatThreadView(props: ChatThreadViewProps) {
                     <ChoiceOptions
                       disabled={sending || inputLocked}
                       onSelect={(label) => onSendContent(label)}
+                    />
+                  ) : showUnsureOffer ? (
+                    <OptionChips
+                      disabled={sending || inputLocked}
+                      options={[
+                        {
+                          label: 'Sim, chame um analista',
+                          onClick: () => onSendContent('Sim, chame um analista'),
+                        },
+                        {
+                          label: 'Não, continuar',
+                          onClick: () => onSendContent('Não, obrigado'),
+                        },
+                      ]}
                     />
                   ) : null
                 }

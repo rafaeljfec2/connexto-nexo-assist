@@ -14,6 +14,24 @@ describe('humanizeEvent (Consulta chips)', () => {
     ).toBe('calculou o prazo');
   });
 
+  it('labels transfer.offer_unsure and out_of_it', () => {
+    expect(
+      humanizeEvent({
+        rule: 'transfer.offer_unsure',
+        result: 'offer',
+        justification: 'low confidence',
+      }),
+    ).toBe('ofereceu um analista');
+    expect(
+      humanizeEvent({
+        intent: 'out_of_it',
+        rule: 'scope.out_of_it.hr',
+        result: 'redirected',
+        justification: 'out of scope',
+      }),
+    ).toBe('redirecionou fora de TI');
+  });
+
   it('labels sla.compute_due as consultou o SLA on draft create', () => {
     expect(
       humanizeEvent({

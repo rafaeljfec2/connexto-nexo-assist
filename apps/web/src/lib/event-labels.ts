@@ -57,6 +57,12 @@ export function humanizeEvent(event: EventLabelInput): string {
       : 'preparou o complemento';
   }
 
+  if (rule.includes('offer_unsure')) {
+    return 'ofereceu um analista';
+  }
+  if (rule.includes('out_of_it') || intent === 'out_of_it') {
+    return 'redirecionou fora de TI';
+  }
   if (
     tool.includes('transfer') ||
     intent.includes('transfer') ||

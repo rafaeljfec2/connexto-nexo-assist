@@ -91,7 +91,7 @@ test.describe('Nexo Assist smoke', () => {
     await expect(page.getByText(/Ana espera um atendente/i)).toBeVisible();
     await expect(page.getByRole('button', { name: 'Assumir atendimento' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Devolver ao agent' })).toBeVisible();
-    await expect(page.getByText(/Chamados da Ana/i)).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Chamados da Ana/i })).toBeVisible();
     await expect(page.getByText('Desta conversa')).toBeVisible();
     await expect(page.getByText('INC-20311').first()).toBeVisible();
 
@@ -127,10 +127,10 @@ test.describe('Nexo Assist smoke', () => {
     await expect(page.getByRole('button', { name: 'Devolver ao agent' })).toBeVisible();
     await page.getByRole('button', { name: 'Devolver ao agent' }).click();
 
-    await expect(page.getByText('Atendimento devolvido ao agente.')).toBeVisible({
+    await expect(page.getByText('Atendimento devolvido ao agente.').first()).toBeVisible({
       timeout: 10_000,
     });
-    await expect(page.getByText('Agent atendendo')).toBeVisible();
+    await expect(page.getByText('Agent atendendo').first()).toBeVisible();
     await expect(page.getByRole('button', { name: 'Assumir atendimento' })).toHaveCount(0);
   });
 
@@ -160,10 +160,10 @@ test.describe('Nexo Assist smoke', () => {
     await expect(page.getByText('Você está atendendo')).toBeVisible({ timeout: 10_000 });
 
     await page.getByRole('button', { name: 'Devolver ao agent' }).click();
-    await expect(page.getByText('Atendimento devolvido ao agente.')).toBeVisible({
+    await expect(page.getByText('Atendimento devolvido ao agente.').first()).toBeVisible({
       timeout: 10_000,
     });
-    await expect(page.getByText('Agent atendendo')).toBeVisible();
+    await expect(page.getByText('Agent atendendo').first()).toBeVisible();
   });
 
   test('consulta flow: status → select INC-20311 → overdue actions', async ({ page }) => {
@@ -197,7 +197,8 @@ test.describe('Nexo Assist smoke', () => {
     await expect(page.getByRole('radio', { name: /INC-20311/i })).toBeVisible();
     await expect(page.getByRole('radio', { name: /INC-20298/i })).toBeVisible();
     await expect(page.getByRole('radio', { name: /REQ-10442/i })).toBeVisible();
-    await expect(page.getByRole('radio')).toHaveCount(3);
+    // Seed has three open tickets; local HITL demos may add more — require at least the fixtures.
+    expect(await page.getByRole('radio').count()).toBeGreaterThanOrEqual(3);
 
     await page.getByRole('radio', { name: /INC-20311/i }).click();
 

@@ -63,6 +63,7 @@ export type ExecutionEvent = {
   rule: string | null;
   result: string;
   justification: string;
+  confidence?: 'high' | 'medium' | 'low' | null;
   createdAt: string;
 };
 

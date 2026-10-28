@@ -21,6 +21,11 @@ const categoryLabels: Record<string, string> = {
   other: 'Outros',
 };
 
+const typeLabels: Record<string, string> = {
+  incident: 'Incidente',
+  request: 'Requisição',
+};
+
 function str(value: unknown): string {
   return typeof value === 'string' ? value : value != null ? String(value) : '';
 }
@@ -74,6 +79,8 @@ export function DraftConfirmCard({
   const payload = draft.payload;
   const title = str(payload['title']) || 'Novo chamado';
   const description = str(payload['description']);
+  const typeKey = str(payload['type']);
+  const typeLabel = typeLabels[typeKey] ?? (typeKey || null);
   const categoryKey = str(payload['category']);
   const category = categoryLabels[categoryKey] ?? (categoryKey || '—');
   const affected = affectedLabels[str(payload['affectedScope'])] ?? null;
@@ -133,7 +140,15 @@ export function DraftConfirmCard({
       </div>
 
       <div className="px-[18px] pb-4">
-        <dl className="grid grid-cols-1 gap-x-6 border-t border-rule pt-3 sm:grid-cols-3">
+        <dl className="grid grid-cols-1 gap-x-6 border-t border-rule pt-3 sm:grid-cols-2 lg:grid-cols-4">
+          {typeLabel ? (
+            <div className="flex flex-col gap-1">
+              <dt className="text-[12.5px] font-normal leading-none text-ink-3">Tipo</dt>
+              <dd className="whitespace-nowrap text-[14.5px] font-medium leading-none text-ink">
+                {typeLabel}
+              </dd>
+            </div>
+          ) : null}
           <div className="flex flex-col gap-1">
             <dt className="text-[12.5px] font-normal leading-none text-ink-3">Categoria</dt>
             <dd className="whitespace-nowrap text-[14.5px] font-medium leading-none text-ink">

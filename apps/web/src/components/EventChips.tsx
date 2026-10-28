@@ -1,9 +1,18 @@
 'use client';
 
 import { useState } from 'react';
+import { confidenceLabelPt } from '@nexo-assist/domain';
 import type { ExecutionEvent } from '@/lib/api';
 import { humanizeEvent } from '@/lib/event-labels';
 import { cx } from '@/lib/ui';
+
+function confidenceOf(event: ExecutionEvent): 'high' | 'medium' | 'low' | null {
+  const value = event.confidence;
+  if (value === 'high' || value === 'medium' || value === 'low') {
+    return value;
+  }
+  return null;
+}
 
 export function EventChips({
   events,
@@ -23,12 +32,14 @@ export function EventChips({
   });
 
   return (
-    <div className={cx('mb-3 flex w-fit flex-row flex-wrap items-center gap-3', className)}>      <span className="whitespace-nowrap text-[12.5px] font-semibold leading-none text-ink">
+    <div className={cx('mb-3 flex w-fit flex-row flex-wrap items-center gap-3', className)}>
+      <span className="whitespace-nowrap text-[12.5px] font-semibold leading-none text-ink">
         Nexo Assist
       </span>
       {unique.map((event) => {
         const label = humanizeEvent(event);
         const isOpen = openId === event.id;
+        const confidence = confidenceOf(event);
         return (
           <div key={event.id} className="relative inline-flex items-center">
             <button
@@ -63,6 +74,10 @@ export function EventChips({
                 </p>
                 <p className="mt-1">
                   <strong>Resultado:</strong> {event.result}
+                </p>
+                <p className="mt-1">
+                  <strong>Grau de segurança:</strong>{' '}
+                  {confidence ? confidenceLabelPt(confidence) : '—'}
                 </p>
                 <p className="mt-1">
                   <strong>Justificativa:</strong> {event.justification}

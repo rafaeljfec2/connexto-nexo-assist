@@ -126,7 +126,14 @@ export function useChatMessaging(input: {
           }
         }, CLIENT_TURN_TIMEOUT_MS);
       } catch (err) {
-        setError(err instanceof ApiError ? err.message : 'Falha ao enviar mensagem');
+        if (err instanceof ApiError && err.status === 503) {
+          setError(
+            err.message ||
+              'O sistema de chamados está temporariamente indisponível. Tente novamente em instantes.',
+          );
+        } else {
+          setError(err instanceof ApiError ? err.message : 'Falha ao enviar mensagem');
+        }
         setSending(false);
       }
     },
