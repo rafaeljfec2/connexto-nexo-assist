@@ -1,3 +1,7 @@
+import {
+  buildTicketListIntro,
+  inferPrioritySignalsFromText,
+} from '@nexo-assist/domain';
 import type {
   LlmMessage,
   LlmProvider,
@@ -61,34 +65,11 @@ function parseAffectedScope(text: string): AffectedScope | null {
 }
 
 function detectSameDayCommitment(text: string): boolean {
-  const normalized = text.toLowerCase();
-  return (
-    /reuni[aã]o/.test(normalized) ||
-    normalized.includes('compromisso') ||
-    normalized.includes('mesmo dia') ||
-    /\b\d{1,2}\s*h\b/.test(normalized) ||
-    /\b\d{1,2}:\d{2}\b/.test(normalized)
-  );
+  return inferPrioritySignalsFromText(text).sameDayCommitment === true;
 }
 
 function detectWorkStopped(text: string): boolean | null {
-  const normalized = text.toLowerCase();
-  if (
-    normalized.includes('não consigo trabalhar') ||
-    normalized.includes('nao consigo trabalhar') ||
-    normalized.includes('trabalho parado') ||
-    normalized.includes('impede de trabalhar')
-  ) {
-    return true;
-  }
-  if (
-    normalized.includes('consigo trabalhar') ||
-    normalized.includes('tenho alternativa') ||
-    normalized.includes('workaround')
-  ) {
-    return false;
-  }
-  return null;
+  return inferPrioritySignalsFromText(text).workStopped;
 }
 
 function extractTicketNumber(text: string): string | null {
@@ -136,6 +117,53 @@ function isExplicitCreate(text: string): boolean {
   );
 }
 
+function isAddInformationRequest(text: string): boolean {
+  const normalized = text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '');
+  const asksAddInfo =
+    normalized.includes('adicionar informacao') ||
+    normalized.includes('acrescentar informacao') ||
+    /\badicionar info\b/.test(normalized);
+  return asksAddInfo && /\b(?:inc|req)-\d+\b/i.test(text);
+}
+
+function isComplementPrompt(content: string): boolean {
+  const normalized = content.toLowerCase();
+  return (
+    normalized.includes('qual informação deseja acrescentar') ||
+    normalized.includes('qual informacao deseja acrescentar') ||
+    normalized.includes('o que deseja acrescentar') ||
+    normalized.includes('informação para acrescentar') ||
+    normalized.includes('informacao para acrescentar')
+  );
+}
+
+function assistantAskedComplement(messages: readonly LlmMessage[]): boolean {
+  // Scan recent assistants — a tool-call turn may insert an empty assistant after the prompt.
+  for (const message of [...messages].reverse()) {
+    if (message.role !== 'assistant' || !message.content.trim()) {
+      continue;
+    }
+    return isComplementPrompt(message.content);
+  }
+  return false;
+}
+
+function ticketNumberFromHistory(messages: readonly LlmMessage[]): string | null {
+  for (const message of [...messages].reverse()) {
+    if (message.role !== 'user' && message.role !== 'assistant') {
+      continue;
+    }
+    const number = extractTicketNumber(message.content);
+    if (number) {
+      return number;
+    }
+  }
+  return null;
+}
+
 /**
  * Deterministic demo provider that mirrors the Figma “Novo chamado” usability flow:
  * VPN/809 → list tickets + help → ask impact → prepare_draft (HITL) → confirm.
@@ -175,6 +203,7 @@ export class ScriptedLlmProvider implements LlmProvider {
       const lastTool = toolResults[toolResults.length - 1];
 
       if (lastTool?.name === 'prepare_draft') {
+        // handlePrepareDraft already sets the HITL confirmation text; keep a create fallback.
         return {
           content:
             'Coloquei prioridade alta por causa da reunião — a resposta chega antes das 14h. Confira antes de eu criar:',
@@ -198,6 +227,7 @@ export class ScriptedLlmProvider implements LlmProvider {
       if (lastTool?.name === 'get_ticket') {
         let overdue = false;
         let updatedAtIso: string | null = null;
+        let ticketId: string | null = null;
         try {
           const parsed: unknown = JSON.parse(lastTool.content);
           if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
@@ -212,10 +242,29 @@ export class ScriptedLlmProvider implements LlmProvider {
                 : typeof row['createdAt'] === 'string'
                   ? row['createdAt']
                   : null;
+            ticketId = typeof row['id'] === 'string' ? row['id'] : null;
           }
         } catch {
           overdue = false;
         }
+
+        if (assistantAskedComplement(input.messages) && ticketId && !usedTools.has('prepare_draft')) {
+          return {
+            content: null,
+            toolCalls: [
+              {
+                id: 'call_draft_complement',
+                name: 'prepare_draft',
+                arguments: {
+                  action: 'update',
+                  ticketId,
+                  description: lastUser,
+                },
+              },
+            ],
+          };
+        }
+
         if (overdue) {
           const updatedAt = updatedAtIso ? new Date(updatedAtIso) : new Date(Date.now() - 5 * 86_400_000);
           const days = Math.max(
@@ -245,10 +294,8 @@ export class ScriptedLlmProvider implements LlmProvider {
         } catch {
           openCount = 0;
         }
-        const countLabel =
-          openCount === 1 ? '1 chamado aberto' : `${openCount || 3} chamados abertos`;
         return {
-          content: `Você tem ${countLabel}. Sobre qual deles quer saber?`,
+          content: buildTicketListIntro(openCount),
           toolCalls: [],
         };
       }
@@ -278,6 +325,36 @@ export class ScriptedLlmProvider implements LlmProvider {
           },
         ],
       };
+    }
+
+    if (isAddInformationRequest(text)) {
+      const number =
+        extractTicketNumber(lastUser) ?? ticketNumberFromHistory(input.messages) ?? 'chamado';
+      return {
+        content: `Pode me dizer qual informação deseja acrescentar ao ${number}?`,
+        toolCalls: [],
+      };
+    }
+
+    if (
+      assistantAskedComplement(input.messages) &&
+      lastUser.trim().length > 0 &&
+      !usedTools.has('get_ticket') &&
+      !usedTools.has('prepare_draft')
+    ) {
+      const number = ticketNumberFromHistory(input.messages);
+      if (number) {
+        return {
+          content: null,
+          toolCalls: [
+            {
+              id: 'call_get_ticket_complement',
+              name: 'get_ticket',
+              arguments: { ticketNumber: number },
+            },
+          ],
+        };
+      }
     }
 
     const impactScope = parseAffectedScope(text);

@@ -320,8 +320,19 @@ export async function handlePrepareDraft(input: {
   assistantText: string | null;
   transferRequested: boolean;
 }> {
-  const priority = input.policy.decidePriorityFromDraft(input.args);
-  const draftPayload: Record<string, unknown> = { ...input.args };
+  const action = String(input.args['action'] ?? 'create');
+  if (action === 'update' || action === 'reopen' || action === 'transfer') {
+    return handleMutationDraft(input, action);
+  }
+
+  const { decision: priority, enriched: enrichedSignals } =
+    input.policy.resolvePriorityFromDraft(input.args);
+  const draftPayload: Record<string, unknown> = {
+    ...input.args,
+    sameDayCommitment: enrichedSignals.sameDayCommitment,
+    workStopped: enrichedSignals.workStopped,
+    hasAlternative: enrichedSignals.hasAlternative,
+  };
   if (priority.priority) {
     const dueAt = computeDueAt(priority.priority as TicketPriority, new Date());
     draftPayload['priority'] = priority.priority;
@@ -375,9 +386,111 @@ export async function handlePrepareDraft(input: {
         .join(', ')}. Confirme se deseja complementar ou criar mesmo assim.`;
     } else {
       const versionLabel = preparedDraft ? preparedDraft.version : '?';
-      assistantText = `Preparei o rascunho versão ${versionLabel} com prioridade ${priority.priority}. Confirme para criar.`;
+      assistantText =
+        priority.priority === 'high' && enrichedSignals.sameDayCommitment === true
+          ? `Coloquei prioridade alta por causa do compromisso no mesmo dia. Confira o rascunho versão ${versionLabel} antes de eu criar:`
+          : `Preparei o rascunho versão ${versionLabel} com prioridade ${priority.priority}. Confirme para criar.`;
     }
   }
 
   return { preparedDraft, assistantText, transferRequested };
+}
+
+async function handleMutationDraft(
+  input: {
+    readonly db: AppDatabase;
+    readonly tickets: TicketGateway;
+    readonly conversationId: string;
+    readonly employeeId: string;
+    readonly args: Record<string, unknown>;
+    readonly events: TurnEvent[];
+  },
+  action: string,
+): Promise<{
+  preparedDraft: DraftRow | null;
+  assistantText: string | null;
+  transferRequested: boolean;
+}> {
+  const draftPayload: Record<string, unknown> = { ...input.args, action };
+  let ticketId =
+    typeof draftPayload['ticketId'] === 'string' ? draftPayload['ticketId'] : null;
+  const ticketNumber =
+    typeof draftPayload['ticketNumber'] === 'string'
+      ? draftPayload['ticketNumber']
+      : null;
+
+  if (!ticketId && ticketNumber) {
+    const owned = await input.tickets.findOwnedByNumberOrId(
+      input.employeeId,
+      ticketNumber,
+    );
+    if (owned) {
+      ticketId = owned.id;
+      draftPayload['ticketId'] = owned.id;
+      draftPayload['ticketNumber'] = owned.number;
+    }
+  } else if (ticketId && !ticketNumber) {
+    const owned = await input.tickets.findOwnedByNumberOrId(
+      input.employeeId,
+      ticketId,
+    );
+    if (owned) {
+      draftPayload['ticketNumber'] = owned.number;
+    }
+  }
+
+  if (!ticketId) {
+    input.events.push({
+      intent: action,
+      tool: null,
+      rule: 'draft.update_needs_ticket',
+      result: 'needs_ticket',
+      justification: 'Complement/update draft requires a ticket id or number.',
+    });
+    return {
+      preparedDraft: null,
+      assistantText:
+        'Para acrescentar informação preciso do número do chamado (INC-/REQ-). Qual é?',
+      transferRequested: false,
+    };
+  }
+
+  const description = String(draftPayload['description'] ?? '').trim();
+  if (action === 'update' && !description) {
+    input.events.push({
+      intent: 'update',
+      tool: null,
+      rule: 'draft.update_needs_description',
+      result: 'needs_description',
+      justification: 'Complement draft requires the information to append.',
+    });
+    return {
+      preparedDraft: null,
+      assistantText: 'Pode me dizer qual informação deseja acrescentar ao chamado?',
+      transferRequested: false,
+    };
+  }
+
+  const preparedDraft = await saveDraft(input.db, input.conversationId, draftPayload);
+  const numberLabel =
+    typeof draftPayload['ticketNumber'] === 'string'
+      ? draftPayload['ticketNumber']
+      : 'chamado';
+  const versionLabel = preparedDraft ? preparedDraft.version : '?';
+  input.events.push({
+    intent: action,
+    tool: null,
+    rule: `draft.${action}_prepared`,
+    result: numberLabel,
+    justification: `Prepared ${action} draft for ${numberLabel}.`,
+  });
+
+  const assistantText =
+    action === 'update'
+      ? `Preparei o rascunho versão ${versionLabel} para complementar o ${numberLabel}. Confirme para atualizar.`
+      : action === 'reopen'
+        ? `Preparei o rascunho versão ${versionLabel} para reabrir o ${numberLabel}. Confirme para continuar.`
+        : `Preparei o rascunho versão ${versionLabel} para transferir o ${numberLabel}. Confirme para continuar.`;
+
+  return { preparedDraft, assistantText, transferRequested: false };
 }

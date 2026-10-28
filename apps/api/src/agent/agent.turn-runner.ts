@@ -25,10 +25,14 @@ import {
   AGENT_TOOLS,
   asTicketInspectResult,
   buildConsultaDetailReply,
+  resolveListOnlyAssistantText,
   runAgentTool,
 } from './agent.tools';
 import { NEXO_ASSIST_INSTRUCTIONS, runMastraTurn } from './mastra';
-import { tryHandleDraftConfirmation } from './agent.turn-confirm';
+import {
+  tryHandleComplementStart,
+  tryHandleDraftConfirmation,
+} from './agent.turn-confirm';
 import type { FailExecution, PersistAgentOutcome, TurnEvent } from './agent.types';
 
 export type { TurnEvent, PersistAgentOutcome, FailExecution } from './agent.types';
@@ -52,6 +56,7 @@ async function runScriptedTurn(input: {
 }> {
   let assistantText = '';
   let preparedDraft: DraftRow | null = input.pendingDraft;
+  let listedOpenCount: number | null = null;
   const seenToolKeys = new Set<string>();
   let steps = 0;
   let transferRequested = false;
@@ -145,6 +150,9 @@ async function runScriptedTurn(input: {
           }
         }
       } else {
+        if (call.name === 'list_my_tickets') {
+          listedOpenCount = Array.isArray(toolResult) ? toolResult.length : 0;
+        }
         input.events.push({
           intent,
           tool: call.name,
@@ -184,7 +192,15 @@ async function runScriptedTurn(input: {
     }
   }
 
-  return { assistantText, preparedDraft, transferRequested };
+  return {
+    assistantText: resolveListOnlyAssistantText({
+      events: input.events,
+      listedOpenCount,
+      fallback: assistantText || 'Como posso ajudar?',
+    }),
+    preparedDraft,
+    transferRequested,
+  };
 }
 
 export async function runAgentTurn(input: {
@@ -235,6 +251,17 @@ export async function runAgentTurn(input: {
       failExecution: input.failExecution,
     });
     if (handledConfirm) {
+      return;
+    }
+
+    const handledComplement = await tryHandleComplementStart({
+      content: input.content,
+      conversationId: input.conversationId,
+      executionId: input.executionId,
+      pendingDraft,
+      persistAgentOutcome: input.persistAgentOutcome,
+    });
+    if (handledComplement) {
       return;
     }
 

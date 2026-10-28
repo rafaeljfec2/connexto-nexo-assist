@@ -147,6 +147,75 @@ export async function tryHandleDraftConfirmation(input: {
   return false;
 }
 
+/**
+ * Consulta C6: "Adicionar informação ao chamado INC-XXXX" must start a complement
+ * prompt — never the new-incident impact question ("Quem está sendo afetado?").
+ * Skips when a pending draft exists so duplicity/HITL phrases like "complementar"
+ * are not hijacked.
+ */
+export async function tryHandleComplementStart(input: {
+  readonly content: string;
+  readonly conversationId: string;
+  readonly executionId: string;
+  readonly pendingDraft: DraftRow | null;
+  readonly persistAgentOutcome: PersistAgentOutcome;
+}): Promise<boolean> {
+  if (input.pendingDraft) {
+    return false;
+  }
+  const match = parseAddInformationRequest(input.content);
+  if (!match) {
+    return false;
+  }
+  const numberLabel = match.ticketNumber;
+  await input.persistAgentOutcome({
+    conversationId: input.conversationId,
+    executionId: input.executionId,
+    agentContent: `Pode me dizer qual informação deseja acrescentar ao ${numberLabel}?`,
+    events: [
+      {
+        intent: 'update',
+        tool: null,
+        rule: 'consulta.complement_start',
+        result: numberLabel,
+        justification: 'Employee requested to add information to an existing ticket.',
+      },
+    ],
+    draft: null,
+    status: 'with_agent',
+    summary: null,
+  });
+  return true;
+}
+
+/**
+ * C6 button / explicit add-info phrases with a ticket number only.
+ * Bare "complementar" is excluded — it collides with duplicity HITL copy.
+ */
+export function parseAddInformationRequest(
+  content: string,
+): { ticketNumber: string } | null {
+  const normalized = content
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '');
+  const isAddInfo =
+    normalized.includes('adicionar informacao') ||
+    normalized.includes('acrescentar informacao') ||
+    /\badicionar info\b/.test(normalized);
+  if (!isAddInfo) {
+    return null;
+  }
+  const numberMatch = /\b((?:inc|req)-\d+)\b/i.exec(content);
+  if (!numberMatch?.[1]) {
+    return null;
+  }
+  return {
+    ticketNumber: numberMatch[1].toUpperCase(),
+  };
+}
+
 function looksLikeFailedConfirmation(content: string): boolean {
   const text = content
     .trim()

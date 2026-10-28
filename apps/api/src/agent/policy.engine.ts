@@ -2,24 +2,43 @@ import { Injectable } from '@nestjs/common';
 import {
   decidePriority,
   detectDuplicity,
+  enrichPriorityInputFromText,
   type DuplicateProbe,
 } from '@nexo-assist/domain';
 import type {
   AffectedScope,
   DuplicateCandidate,
   PriorityDecision,
+  PriorityInput,
   TicketCategory,
 } from '@nexo-assist/contracts';
+
+export type DraftPriorityResolution = {
+  readonly decision: PriorityDecision;
+  readonly enriched: PriorityInput;
+};
 
 @Injectable()
 export class PolicyEngine {
   decidePriorityFromDraft(payload: Record<string, unknown>): PriorityDecision {
-    return decidePriority({
-      affectedScope: (payload['affectedScope'] as AffectedScope | undefined) ?? 'unknown',
-      workStopped: asNullableBoolean(payload['workStopped']),
-      sameDayCommitment: asNullableBoolean(payload['sameDayCommitment']),
-      hasAlternative: asNullableBoolean(payload['hasAlternative']),
-    });
+    return this.resolvePriorityFromDraft(payload).decision;
+  }
+
+  resolvePriorityFromDraft(payload: Record<string, unknown>): DraftPriorityResolution {
+    const text = [payload['title'], payload['description']]
+      .filter((part): part is string => typeof part === 'string' && part.trim().length > 0)
+      .join('\n');
+    const enriched = enrichPriorityInputFromText(
+      {
+        affectedScope:
+          (payload['affectedScope'] as AffectedScope | undefined) ?? 'unknown',
+        workStopped: asNullableBoolean(payload['workStopped']),
+        sameDayCommitment: asNullableBoolean(payload['sameDayCommitment']),
+        hasAlternative: asNullableBoolean(payload['hasAlternative']),
+      },
+      text,
+    );
+    return { decision: decidePriority(enriched), enriched };
   }
 
   detectDuplicates(

@@ -1,11 +1,13 @@
 import {
   buildOverdueConsultaPrompt,
+  buildTicketListIntro,
   MEDIUM_SLA_BUSINESS_DAYS,
 } from '@nexo-assist/domain';
 import type { AppDatabase } from '../db/client';
 import { helpArticles } from '../db/schema';
 import type { TicketGateway } from '../tickets/ticket.gateway';
 import type { LlmToolDefinition } from './llm.provider';
+import type { TurnEvent } from './agent.types';
 
 export const AGENT_TOOLS: LlmToolDefinition[] = [
   {
@@ -37,7 +39,7 @@ export const AGENT_TOOLS: LlmToolDefinition[] = [
   {
     name: 'prepare_draft',
     description:
-      'Prepare a versioned draft for create/update/reopen/transfer. Does not mutate tickets.',
+      'Prepare a versioned draft for create/update/reopen/transfer. Does not mutate tickets. For complement use action=update with ticketId (or ticketNumber) and description of the new information only. Never use action=create for "Adicionar informação".',
     parameters: {
       type: 'object',
       properties: {
@@ -47,6 +49,7 @@ export const AGENT_TOOLS: LlmToolDefinition[] = [
         category: { type: 'string' },
         type: { type: 'string' },
         ticketId: { type: 'string' },
+        ticketNumber: { type: 'string' },
         errorCode: { type: 'string' },
         affectedScope: { type: 'string' },
         workStopped: { type: 'boolean' },
@@ -148,6 +151,29 @@ export function buildConsultaDetailReply(
     updatedAt: new Date(ticket.updatedAt || ticket.createdAt || Date.now()),
     businessDays: MEDIUM_SLA_BUSINESS_DAYS,
   });
+}
+
+/**
+ * When the turn only listed tickets (Consulta C2), discard LLM enumerations and
+ * persist the short Figma intro — the UI TicketPicker owns the list.
+ */
+export function resolveListOnlyAssistantText(input: {
+  readonly events: readonly TurnEvent[];
+  readonly listedOpenCount: number | null;
+  readonly fallback: string;
+}): string {
+  const tools = new Set(
+    input.events.map((event) => event.tool).filter((tool): tool is string => Boolean(tool)),
+  );
+  const listedOnly =
+    tools.has('list_my_tickets') &&
+    !tools.has('get_ticket') &&
+    !tools.has('search_help') &&
+    !tools.has('prepare_draft');
+  if (listedOnly && input.listedOpenCount != null) {
+    return buildTicketListIntro(input.listedOpenCount);
+  }
+  return input.fallback;
 }
 
 export async function runAgentTool(
