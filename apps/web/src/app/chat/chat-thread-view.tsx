@@ -3,6 +3,7 @@ import {
   formatOpenedAtPt,
   formatPriorityPt,
   formatRelativeUpdatePt,
+  isTicketOverdue,
 } from '@nexo-assist/domain';
 import type { ConversationPayload, ExecutionEvent, Message } from '@/lib/api';
 import { ChatBubble } from '@/components/ChatBubble';
@@ -20,6 +21,15 @@ import {
 } from './chat-helpers';
 import {
   detailCardAgentContent,
+  findConsultaDetailBlocks,
+  findListTurnEvents,
+  findTicketPickerAnchorIndexes,
+  isTicketPickerInteractive,
+  looksLikeConsultaDetailDump,
+  looksLikeOverdueConsultaPrompt,
+  looksLikeTicketEnumeration,
+  looksLikeTicketListIntro,
+  selectedTicketIdForPickerAnchor,
   ticketPickerIntroContent,
 } from './chat-thread-derivations';
 
@@ -32,6 +42,7 @@ export type ChatThreadViewProps = {
   showImpactChoices: boolean;
   showTicketPicker: boolean;
   openTickets: TicketRow[];
+  tickets: TicketRow[];
   detailTicket: TicketRow | null;
   overdue: boolean;
   lastAgentMessage: Message | undefined;
@@ -59,6 +70,7 @@ export function ChatThreadView(props: ChatThreadViewProps) {
     showImpactChoices,
     showTicketPicker,
     openTickets,
+    tickets,
     detailTicket,
     overdue,
     lastAgentMessage,
@@ -76,10 +88,157 @@ export function ChatThreadView(props: ChatThreadViewProps) {
     onEditDraft,
   } = props;
 
-  const detailFollowUpText =
-    showDetailCard && detailTicket
-      ? detailCardAgentContent({ lastAgentMessage, overdue, detailTicket })
+  const pickerAnchorIndexes =
+    openTickets.length > 0 ? findTicketPickerAnchorIndexes(messages) : [];
+  const latestPickerAnchor = pickerAnchorIndexes.at(-1) ?? null;
+  const fallbackPickerAnchor =
+    showTicketPicker &&
+    lastAgentIndex != null &&
+    !pickerAnchorIndexes.includes(lastAgentIndex)
+      ? lastAgentIndex
       : null;
+  const allPickerAnchors =
+    fallbackPickerAnchor != null
+      ? [...pickerAnchorIndexes, fallbackPickerAnchor]
+      : pickerAnchorIndexes;
+  const pickerAnchorSet = new Set(allPickerAnchors);
+
+  const listTurnEvents = findListTurnEvents(payload?.events ?? [], {});
+  const latestPickerInteractive =
+    latestPickerAnchor != null &&
+    isTicketPickerInteractive(messages, latestPickerAnchor);
+  const pickerChips =
+    listTurnEvents.length > 0
+      ? listTurnEvents
+      : showTicketPicker || latestPickerInteractive
+        ? latestTurnEvents
+        : [];
+
+  const detailBlocks = findConsultaDetailBlocks(messages, tickets);
+  const latestDetailAfterIndex = detailBlocks.at(-1)?.afterIndex ?? null;
+
+  const pickerItems = openTickets.map((ticket) => ({
+    id: ticket.id,
+    number: ticket.number,
+    title: ticket.title,
+    status: formatStatus(ticket.status),
+    statusTone: statusTone(ticket.status),
+    date: compactDateFor(ticket),
+  }));
+
+  function renderPicker(anchorIndex: number) {
+    const interactive = isTicketPickerInteractive(messages, anchorIndex);
+    const selectedId =
+      (interactive ? selectedTicketId : null) ??
+      selectedTicketIdForPickerAnchor({
+        messages,
+        anchorIndex,
+        openTickets,
+      }) ??
+      (interactive && detailTicket ? detailTicket.id : null);
+    return (
+      <TicketPickerList
+        tickets={pickerItems}
+        selectedId={selectedId}
+        disabled={!interactive || sending || inputLocked}
+        onSelect={(ticket) => {
+          const row = openTickets.find((t) => t.id === ticket.id);
+          if (row) {
+            onSelectTicket(row);
+          }
+        }}
+      />
+    );
+  }
+
+  function renderDetailBlock(
+    ticket: TicketRow,
+    options: { latest: boolean; events: ExecutionEvent[] },
+  ) {
+    const ticketOverdue = ticket.dueAt
+      ? isTicketOverdue({
+          dueAt: new Date(ticket.dueAt),
+          status: ticket.status,
+        })
+      : false;
+    const followUp =
+      options.latest && showDetailCard && detailTicket?.id === ticket.id
+        ? detailCardAgentContent({
+            lastAgentMessage,
+            overdue: ticketOverdue,
+            detailTicket: ticket,
+          })
+        : ticketOverdue
+          ? detailCardAgentContent({
+              lastAgentMessage: undefined,
+              overdue: true,
+              detailTicket: ticket,
+            })
+          : null;
+
+    return (
+      <div className="flex w-full max-w-[600px] flex-col items-start gap-1.5">
+        {options.events.length > 0 ? (
+          <EventChips events={options.events} className="mb-0" />
+        ) : null}
+        <TicketCard
+          number={ticket.number}
+          title={ticket.title}
+          description={ticket.description || undefined}
+          status={formatStatus(ticket.status)}
+          statusTone={statusTone(ticket.status)}
+          category={
+            ticket.category
+              ? formatCategoryLabel(ticket.category, ticket.title)
+              : undefined
+          }
+          priority={formatPriorityPt(ticket.priority)}
+          openedAt={
+            ticket.createdAt ? formatOpenedAtPt(new Date(ticket.createdAt)) : undefined
+          }
+          lastUpdate={
+            ticket.updatedAt
+              ? formatRelativeUpdatePt(new Date(ticket.updatedAt))
+              : undefined
+          }
+          overdue={ticketOverdue}
+        />
+        {followUp ? (
+          <ChatBubble
+            role="agent"
+            className="max-w-[600px]"
+            footer={
+              ticketOverdue && options.latest ? (
+                <OptionChips
+                  disabled={sending || inputLocked}
+                  options={[
+                    {
+                      label: 'Falar com um analista',
+                      onClick: () =>
+                        onSendContent(
+                          `Quero falar com um analista sobre o chamado ${ticket.number}`,
+                        ),
+                    },
+                    {
+                      label: 'Adicionar informação',
+                      onClick: () =>
+                        onSendContent(`Adicionar informação ao chamado ${ticket.number}`),
+                    },
+                    {
+                      label: 'Não, obrigado',
+                      onClick: () => onDismissDetail(ticket.number),
+                    },
+                  ]}
+                />
+              ) : undefined
+            }
+          >
+            {followUp}
+          </ChatBubble>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <>
@@ -95,25 +254,54 @@ export function ChatThreadView(props: ChatThreadViewProps) {
         const isEmployee = message.role === 'employee';
         const isAnalyst = message.role === 'analyst';
         const isLastAgent = !isEmployee && !isAnalyst && index === lastAgentIndex;
-        const suppressBubbleForDetail = isLastAgent && showDetailCard;
+        const isPickerAnchor = pickerAnchorSet.has(index);
+        const isLatestPickerAnchor = index === latestPickerAnchor;
+        const detailHere = detailBlocks.filter((block) => block.afterIndex === index);
+        const detailOwnsThisAgent = detailBlocks.some(
+          (block) => block.agentIndex === index,
+        );
+        const suppressConsultaDump =
+          !isEmployee &&
+          !isAnalyst &&
+          detailOwnsThisAgent &&
+          (looksLikeConsultaDetailDump(message.content) ||
+            looksLikeOverdueConsultaPrompt(message.content));
         const suppressBubbleForDraft = isLastAgent && Boolean(payload?.draft);
-        const suppressBubbleForPicker = isLastAgent && showTicketPicker;
-        const showChips =
-          isLastAgent && !showDetailCard && !payload?.draft && !showTicketPicker;
         const showChoices =
           showImpactChoices && index === lastAgentIndex && !isEmployee && !isAnalyst;
+        const showGenericChips =
+          isLastAgent &&
+          !showDetailCard &&
+          !payload?.draft &&
+          !isPickerAnchor &&
+          !showTicketPicker &&
+          detailHere.length === 0;
+
+        const agentDisplayContent =
+          !isEmployee &&
+          !isAnalyst &&
+          (looksLikeTicketEnumeration(message.content) ||
+            looksLikeTicketListIntro(message.content))
+            ? ticketPickerIntroContent(openTickets.length)
+            : message.content;
+
         return (
-          <div
-            key={message.id}
-            className={showChips ? 'flex flex-col animate-rise' : 'animate-rise'}
-          >
-            {showChips ? <EventChips events={latestTurnEvents} /> : null}
-            {suppressBubbleForDetail ||
-            suppressBubbleForDraft ||
-            suppressBubbleForPicker ? null : (
+          <div key={message.id} className="flex flex-col gap-1.5 animate-rise">
+            {isPickerAnchor && isLatestPickerAnchor && pickerChips.length > 0 ? (
+              <EventChips events={pickerChips} className="mb-0" />
+            ) : null}
+            {showGenericChips ? <EventChips events={latestTurnEvents} /> : null}
+
+            {suppressConsultaDump || suppressBubbleForDraft ? null : (
               <ChatBubble
                 role={isEmployee ? 'employee' : isAnalyst ? 'analyst' : 'agent'}
-                className={!isEmployee ? 'max-w-full' : undefined}
+                className={
+                  !isEmployee
+                    ? isPickerAnchor
+                      ? 'max-w-[600px]'
+                      : 'max-w-full'
+                    : undefined
+                }
                 meta={
                   isAnalyst ? (
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-success-text">
@@ -130,28 +318,38 @@ export function ChatThreadView(props: ChatThreadViewProps) {
                   ) : null
                 }
               >
-                {message.content}
+                {isPickerAnchor
+                  ? ticketPickerIntroContent(openTickets.length)
+                  : agentDisplayContent}
               </ChatBubble>
             )}
+
+            {isPickerAnchor ? renderPicker(index) : null}
+
+            {detailHere.map((block) => (
+              <div key={`${block.ticket.id}-${index}`}>
+                {renderDetailBlock(block.ticket, {
+                  latest:
+                    block.afterIndex === latestDetailAfterIndex && showDetailCard,
+                  events:
+                    block.afterIndex === latestDetailAfterIndex && showDetailCard
+                      ? latestTurnEvents
+                      : [],
+                })}
+              </div>
+            ))}
           </div>
         );
       })}
 
-      {showTicketPicker ? (
-        <div className="flex w-full flex-col items-start gap-1.5 animate-rise">
+      {showTicketPicker && allPickerAnchors.length === 0 ? (
+        <div className="flex w-full max-w-[600px] flex-col items-start gap-1.5 animate-rise">
           <EventChips events={latestTurnEvents} className="mb-0" />
           <ChatBubble role="agent" className="max-w-[600px]">
             {ticketPickerIntroContent(openTickets.length)}
           </ChatBubble>
           <TicketPickerList
-            tickets={openTickets.map((ticket) => ({
-              id: ticket.id,
-              number: ticket.number,
-              title: ticket.title,
-              status: formatStatus(ticket.status),
-              statusTone: statusTone(ticket.status),
-              date: compactDateFor(ticket),
-            }))}
+            tickets={pickerItems}
             selectedId={selectedTicketId}
             disabled={sending || inputLocked}
             onSelect={(ticket) => {
@@ -164,68 +362,15 @@ export function ChatThreadView(props: ChatThreadViewProps) {
         </div>
       ) : null}
 
-      {showDetailCard && detailTicket ? (
-        <div className="flex w-full max-w-full flex-col items-start gap-1.5 animate-rise">
-          <EventChips events={latestTurnEvents} className="mb-0" />
-          <TicketCard
-            number={detailTicket.number}
-            title={detailTicket.title}
-            description={detailTicket.description || undefined}
-            status={formatStatus(detailTicket.status)}
-            statusTone={statusTone(detailTicket.status)}
-            category={
-              detailTicket.category
-                ? formatCategoryLabel(detailTicket.category, detailTicket.title)
-                : undefined
-            }
-            priority={formatPriorityPt(detailTicket.priority)}
-            openedAt={
-              detailTicket.createdAt
-                ? formatOpenedAtPt(new Date(detailTicket.createdAt))
-                : undefined
-            }
-            lastUpdate={
-              detailTicket.updatedAt
-                ? formatRelativeUpdatePt(new Date(detailTicket.updatedAt))
-                : undefined
-            }
-            overdue={Boolean(overdue)}
-          />
-          {detailFollowUpText || overdue ? (
-            <ChatBubble
-              role="agent"
-              className="max-w-[600px]"
-              footer={
-                overdue ? (
-                  <OptionChips
-                    disabled={sending || inputLocked}
-                    options={[
-                      {
-                        label: 'Falar com um analista',
-                        onClick: () =>
-                          onSendContent(
-                            `Quero falar com um analista sobre o chamado ${detailTicket.number}`,
-                          ),
-                      },
-                      {
-                        label: 'Adicionar informação',
-                        onClick: () =>
-                          onSendContent(
-                            `Adicionar informação ao chamado ${detailTicket.number}`,
-                          ),
-                      },
-                      {
-                        label: 'Não, obrigado',
-                        onClick: () => onDismissDetail(detailTicket.number),
-                      },
-                    ]}
-                  />
-                ) : undefined
-              }
-            >
-              {detailFollowUpText ?? ''}
-            </ChatBubble>
-          ) : null}
+      {/* Fresh inspect turn before selection message is hydrated into history. */}
+      {showDetailCard &&
+      detailTicket &&
+      !detailBlocks.some((block) => block.ticket.id === detailTicket.id) ? (
+        <div className="animate-rise">
+          {renderDetailBlock(detailTicket, {
+            latest: true,
+            events: latestTurnEvents,
+          })}
         </div>
       ) : null}
 

@@ -132,20 +132,14 @@ export function TicketCard({
               <dt className="whitespace-nowrap text-[12.5px] font-normal leading-none text-ink-3">
                 Última atualização
               </dt>
-              <dd className="inline-flex flex-wrap items-center gap-1.5">
-                <span
-                  className={cx(
-                    'whitespace-nowrap text-[14.5px] font-medium leading-none',
-                    overdue ? 'text-warning-text' : 'text-ink',
-                  )}
-                >
-                  {lastUpdate ?? '—'}
-                </span>
-                {overdue ? (
-                  <span className="whitespace-nowrap text-[13.5px] font-normal leading-none text-ink-3">
-                    · prazo vencido
-                  </span>
-                ) : null}
+              <dd
+                className={cx(
+                  'inline-flex flex-wrap items-center gap-1.5 whitespace-nowrap text-[14.5px] font-medium leading-none',
+                  overdue ? 'text-warning-text' : 'text-ink',
+                )}
+              >
+                <span>{lastUpdate ?? '—'}</span>
+                {overdue ? <span>· prazo vencido</span> : null}
               </dd>
             </div>
           ) : null}

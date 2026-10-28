@@ -41,6 +41,22 @@ export function humanizeEvent(event: EventLabelInput): string {
   if (tool === 'list_my_tickets') return 'consultou seus chamados';
   if (tool === 'search_help') return 'buscou na central de ajuda';
   if (tool === 'prepare_draft') return 'montou o rascunho';
+
+  if (rule.includes('complement_start') || rule.includes('update_needs_description')) {
+    const number =
+      extractTicketNumber(result) ?? extractTicketNumber(justification);
+    return number
+      ? `pediu complemento do ${number.toUpperCase()}`
+      : 'pediu complemento do chamado';
+  }
+  if (rule.includes('update_prepared') || (intent === 'update' && rule.includes('draft.'))) {
+    const number =
+      extractTicketNumber(result) ?? extractTicketNumber(justification);
+    return number
+      ? `preparou complemento do ${number.toUpperCase()}`
+      : 'preparou o complemento';
+  }
+
   if (
     tool.includes('transfer') ||
     intent.includes('transfer') ||

@@ -70,4 +70,28 @@ describe('humanizeEvent (Consulta chips)', () => {
       }),
     ).toBe('confirmou o rascunho');
   });
+
+  it('humanizes consulta.complement_start instead of raw rule', () => {
+    expect(
+      humanizeEvent({
+        tool: null,
+        rule: 'consulta.complement_start',
+        intent: 'update',
+        result: 'INC-20311',
+        justification: 'Employee requested to add information to an existing ticket.',
+      }),
+    ).toBe('pediu complemento do INC-20311');
+  });
+
+  it('humanizes draft.update_prepared', () => {
+    expect(
+      humanizeEvent({
+        tool: null,
+        rule: 'draft.update_prepared',
+        intent: 'update',
+        result: 'INC-20311',
+        justification: 'Prepared update draft for INC-20311.',
+      }),
+    ).toBe('preparou complemento do INC-20311');
+  });
 });

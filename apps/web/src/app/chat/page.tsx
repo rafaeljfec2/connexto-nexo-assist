@@ -211,6 +211,7 @@ export default function ChatPage() {
                 showImpactChoices={thread.showImpactChoices}
                 showTicketPicker={thread.showTicketPicker}
                 openTickets={thread.openTickets}
+                tickets={tickets}
                 detailTicket={thread.detailTicket}
                 overdue={thread.overdue}
                 lastAgentMessage={thread.lastAgentMessage}
