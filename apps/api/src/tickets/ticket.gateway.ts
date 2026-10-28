@@ -49,17 +49,57 @@ export class TicketGateway {
     return gateway;
   }
 
-  private assertFaultOff(): void {
-    if (process.env.TICKET_FAULT === 'unavailable') {
-      throw new ServiceUnavailableException('Ticket service unavailable');
+  private static readonly FAULT_MESSAGE =
+    'O sistema de chamados está temporariamente indisponível. Tente novamente em instantes.';
+
+  /**
+   * Affordance (read per call — does not mutate process.env):
+   * - `unavailable` — fail every attempt (after short retries)
+   * - `fail_once` — one synthetic fail inside this retry loop, then succeed
+   * - `off` — healthy
+   */
+  private async withFaultRetry<T>(operation: () => Promise<T>): Promise<T> {
+    const mode = (process.env.TICKET_FAULT ?? 'off').toLowerCase();
+    let remainingSyntheticFails = mode === 'fail_once' ? 1 : 0;
+    const maxAttempts = 3;
+    let lastError: unknown;
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      try {
+        if (mode === 'unavailable') {
+          throw new ServiceUnavailableException(TicketGateway.FAULT_MESSAGE);
+        }
+        if (remainingSyntheticFails > 0) {
+          remainingSyntheticFails -= 1;
+          throw new ServiceUnavailableException(TicketGateway.FAULT_MESSAGE);
+        }
+        return await operation();
+      } catch (error: unknown) {
+        lastError = error;
+        const unavailable =
+          error instanceof ServiceUnavailableException ||
+          (error instanceof Error && /indisponível|unavailable/i.test(error.message));
+        if (!unavailable || attempt >= maxAttempts - 1) {
+          throw error;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
     }
+    throw lastError;
   }
 
   async listOwned(employeeId: string) {
+    return this.withFaultRetry(() => this.listOwnedRaw(employeeId));
+  }
+
+  private async listOwnedRaw(employeeId: string) {
     return this.db.select().from(tickets).where(eq(tickets.employeeId, employeeId));
   }
 
   async getOwned(ticketId: string, employeeId: string) {
+    return this.withFaultRetry(() => this.getOwnedRaw(ticketId, employeeId));
+  }
+
+  private async getOwnedRaw(ticketId: string, employeeId: string) {
     const rows = await this.db
       .select()
       .from(tickets)
@@ -91,7 +131,13 @@ export class TicketGateway {
   }
 
   async create(input: CreateTicketInput, attempt = 0): Promise<Record<string, unknown>> {
-    this.assertFaultOff();
+    return this.withFaultRetry(() => this.createOnce(input, attempt));
+  }
+
+  private async createOnce(
+    input: CreateTicketInput,
+    attempt: number,
+  ): Promise<Record<string, unknown>> {
     const existing = await this.findOperation(input.operationId);
     if (existing) {
       return existing.result;
@@ -154,13 +200,16 @@ export class TicketGateway {
   }
 
   async complement(input: UpdateTicketInput) {
-    this.assertFaultOff();
+    return this.withFaultRetry(() => this.complementOnce(input));
+  }
+
+  private async complementOnce(input: UpdateTicketInput) {
     const existing = await this.findOperation(input.operationId);
     if (existing) {
       return existing.result;
     }
 
-    const ticket = await this.getOwned(input.ticketId, input.employeeId);
+    const ticket = await this.getOwnedRaw(input.ticketId, input.employeeId);
     const allowed = canComplement(ticket.status as TicketStatus);
     if (!allowed.allowed) {
       throw new ForbiddenException(allowed.reason);
@@ -206,13 +255,21 @@ export class TicketGateway {
     readonly note: string;
     readonly operationId: string;
   }) {
-    this.assertFaultOff();
+    return this.withFaultRetry(() => this.reopenOnce(input));
+  }
+
+  private async reopenOnce(input: {
+    readonly ticketId: string;
+    readonly employeeId: string;
+    readonly note: string;
+    readonly operationId: string;
+  }) {
     const existing = await this.findOperation(input.operationId);
     if (existing) {
       return existing.result;
     }
 
-    const ticket = await this.getOwned(input.ticketId, input.employeeId);
+    const ticket = await this.getOwnedRaw(input.ticketId, input.employeeId);
     const allowed = canReopen(ticket.status as TicketStatus, ticket.resolvedAt, new Date());
     if (!allowed.allowed) {
       throw new ForbiddenException(allowed.reason);
@@ -254,13 +311,20 @@ export class TicketGateway {
     readonly employeeId: string;
     readonly operationId: string;
   }) {
-    this.assertFaultOff();
+    return this.withFaultRetry(() => this.transferOnce(input));
+  }
+
+  private async transferOnce(input: {
+    readonly ticketId: string;
+    readonly employeeId: string;
+    readonly operationId: string;
+  }) {
     const existing = await this.findOperation(input.operationId);
     if (existing) {
       return existing.result;
     }
 
-    const ticket = await this.getOwned(input.ticketId, input.employeeId);
+    const ticket = await this.getOwnedRaw(input.ticketId, input.employeeId);
     const allowed = canTransferTicket(ticket.status as TicketStatus);
     if (!allowed.allowed) {
       throw new ForbiddenException(allowed.reason);
@@ -322,10 +386,12 @@ export class TicketGateway {
   }
 
   async listOpenForDuplicity(employeeId: string) {
-    return this.db
-      .select()
-      .from(tickets)
-      .where(and(eq(tickets.employeeId, employeeId), ne(tickets.status, 'resolved')));
+    return this.withFaultRetry(() =>
+      this.db
+        .select()
+        .from(tickets)
+        .where(and(eq(tickets.employeeId, employeeId), ne(tickets.status, 'resolved'))),
+    );
   }
 }
 
