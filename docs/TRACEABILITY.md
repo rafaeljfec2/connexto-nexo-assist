@@ -7,8 +7,12 @@ Maps PRD evaluation criteria and critical requirements to delivery frontiers, do
 | Decision quality — intent + Annex A | Agent proposes; domain code decides type, category, impact, urgency, priority, duplicity, transfer | 1, 4 | `@nexo-assist/domain` + `PolicyEngine` / `AgentOrchestrator` | Vitest domain suite; API scripted-LLM integration tests |
 | Conversation conduct — ask only missing data | Clarification questions when priority/duplicity ambiguous | 1, 4 | `decidePriority`, `detectDuplicity`, orchestrator prompts | Domain tests + orchestrator tests |
 | Draft confirmation by exact version | Mutations require `draftId` + `version` or explicit phrase | 1, 3, 4 | `evaluateConfirmation` + confirm endpoint | Domain confirmation tests; API idempotent confirm test |
-| History after restart | Conversation/messages/events in Postgres | 2, 3 | Drizzle persistence | API integration reload assertion |
-| Transparency — actions above replies | UI lists orchestrator execution events | 4, 5 | `execution_events` + chat chips | Playwright employee chat flow |
+| History after restart | Conversation/messages/events in Postgres | 2, 3 | Drizzle persistence | `api.integration.prd-v5-closure` TECH-6 re-read assertion |
+| Transparency — actions above replies | UI lists orchestrator execution events with confidence | 4, 5 | `execution_events.confidence` + `EventChips` | Domain `deriveConfidence`; API persist; web chip detail |
+| Out-of-IT redirect (AA-7) | RH / finance / facilities never draft | 1, 4 | `detectOutOfItScope` + early turn gate | Domain out-of-scope tests; API PRD closure |
+| Unsure handoff offer (AA-5 / HA-2) | Low confidence stalls offer analyst; structured summary | 4, 6 | `transfer.offer_unsure` + `buildHandoffSummary` | API PRD closure + handoff-summary unit |
+| Ticket fault resilience (CTX-2) | Short retry + clear 503 | 2 | `TicketGateway.withFaultRetry` | API fault_once / unavailable tests; web 503 UX |
+| Create draft completeness (AA-3) | No silent defaults; confirm rejects incomplete | 1, 4 | `assertCreateDraftComplete` | Domain draft-complete; API HITL reject |
 | Interface fidelity — five screens | Login, chat, overdue card, console queue, human attendance | 5, 6 | `apps/web` | Playwright five flows |
 | Console L1–L4 / T1–T3 / A1–A4 | See `docs/SPEC_CONSOLE_ATENDENTE.md` | 6 | Console panes + `ConsoleService` | Integration return-from-waiting; Playwright claim flow |
 | Architecture separation | Web / agent / tickets separated by contract | 2, 4 | `@mastra/core` Agent tools call `TicketGateway` / help search only — no ticket repo import | Module boundary + typecheck |
@@ -49,6 +53,9 @@ Maps PRD evaluation criteria and critical requirements to delivery frontiers, do
 | Complement / reopen / transfer transitions | `packages/domain/src/transitions.ts` | `transitions.test.ts` |
 | Confirmation phrases vs weak affirmations | `packages/domain/src/confirmation.ts` | `confirmation.test.ts` |
 | Consulta C1–C9 helpers (overdue, relative dates) | `packages/domain/src/consulta.ts` | `consulta.test.ts` |
+| Create draft completeness (AA-3) | `packages/domain/src/draft-complete.ts` | `draft-complete.test.ts` |
+| Out-of-IT scope (AA-7) | `packages/domain/src/out-of-scope.ts` | `out-of-scope.test.ts` |
+| Confidence / grau de segurança (BUILD-7) | `packages/domain/src/confidence.ts` | `confidence.test.ts` |
 
 ## Seed fixtures used as acceptance anchors
 

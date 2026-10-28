@@ -3,7 +3,8 @@
 **Data da auditoria:** 2026-10-27  
 **Fonte de verdade:** `Desafio_Tecnico_Nexo_Assist_PRD_v5.pdf` (5 páginas; caminho local Windows `C:\Users\rafae\Downloads\Desafio_Tecnico_Nexo_Assist_PRD_v5.pdf`)  
 **Repositório auditado:** `/home/rafael/dev-rafael/connexto-nexo-assist` (`origin` → `https://github.com/rafaeljfec2/connexto-nexo-assist.git`)  
-**Escopo desta etapa:** diagnóstico apenas — nenhuma correção de código foi implementada.
+**Escopo desta etapa (original):** diagnóstico apenas.  
+**Re-auditoria pós B1–B6:** ver [`PRD-V5-COMPLIANCE-ADDENDUM-2026-10-27.md`](./PRD-V5-COMPLIANCE-ADDENDUM-2026-10-27.md) — obrigatórios **100% CONFORME**; deploy (DIFF-1/DEL-3/EVAL-7) continua NI sem penalizar.
 
 ---
 

@@ -51,7 +51,7 @@ pnpm --filter @nexo-assist/api db:migrate
 pnpm --filter @nexo-assist/api db:seed
 ```
 
-Docker Compose runs migrate + idempotent seed on API start. Re-running seed when `seed_meta` already has `nexo-assist-demo-v3` skips without duplicating users.
+Docker Compose runs migrate + idempotent seed on API start. Re-running seed when `seed_meta` already has `nexo-assist-demo-v4` skips without duplicating users.
 
 ### Sign in as employee
 
@@ -82,17 +82,19 @@ Role comes from the authenticated session on the API (`EmployeeGuard` / `Analyst
 3. Production turns use `@mastra/core` (`Agent` + `createTool` + `generate`). Model routing: `openrouter/<OPENROUTER_MODEL>` or `openai/<OPENAI_MODEL>`. Tools are only `search_help`, `list_my_tickets`, `get_ticket`, and `prepare_draft`. `LLM_PROVIDER=scripted` keeps a deterministic loop for CI without calling the model.
 4. `@nexo-assist/domain` applies Annex A: priority, business-hour SLA (`America/Sao_Paulo`), duplicity thresholds, reopen window (168h inclusive), and draft confirmation phrases.
 5. Mutations go through `TicketGateway` with `operationId` idempotency (create runs in a DB transaction). Create / update / reopen / transfer are never model tools.
-6. Human handoff requires an explicit phrase (e.g. “quero falar com um analista”) or a critical-priority policy decision — not a bare “analista” substring.
-7. Execution events are persisted and shown as chips above agent replies.
-8. Agent turns also emit Nest `Logger` lines under context `AgentTrace` (`turn.started` → `turn.event` rules/tools → `turn.completed` / `turn.failed`, plus `draft.confirm`). Filter API stdout with `grep AgentTrace`. Set `LOG_LEVEL=debug` for more Nest verbosity (default `log`).
+6. Human handoff: explicit phrase (e.g. “quero falar com um analista”), critical priority (direct transfer), overdue/low-confidence stalls **offer** an analyst (chip + phrase; not silent auto-transfer). Accepted offers store a structured summary for the console.
+7. Execution events are persisted with deterministic confidence (`high` / `medium` / `low`) and shown as expandable chips (intent, tool, rule, result, grau de segurança, justification).
+8. Non-IT topics (RH / financeiro / facilities) are redirected without creating drafts. Incomplete create drafts are never confirmed (no silent defaults).
+9. Agent turns also emit Nest `Logger` lines under context `AgentTrace` (`turn.started` → `turn.event` rules/tools → `turn.completed` / `turn.failed`, plus `draft.confirm`). Filter API stdout with `grep AgentTrace`. Set `LOG_LEVEL=debug` for more Nest verbosity (default `log`).
 
 ## How decision quality was proven
 
 | Layer | Command | What it covers |
 |---|---|---|
-| Domain | `pnpm --filter @nexo-assist/domain test` | Priority, SLA, duplicity, transitions, confirmation |
-| API + Postgres | `LLM_PROVIDER=scripted pnpm --filter @nexo-assist/api test` | Owner privacy, idempotency, 31st message, claim race, scripted tools, paused agent |
-| UI smoke | `pnpm --filter @nexo-assist/web test` (Playwright; apps must be running) | Login, employee chat shell, analyst console |
+| Domain | `pnpm --filter @nexo-assist/domain test` | Priority, SLA, duplicity, transitions, confirmation, out-of-IT, confidence, draft completeness |
+| API + Postgres | `LLM_PROVIDER=scripted pnpm --filter @nexo-assist/api test` | Owner privacy, HITL, out-of-IT, unsure offer, ticket fault retry, conversation reload |
+| UI unit | `pnpm --filter @nexo-assist/web test` | Event labels + chat derivations |
+| UI e2e | `pnpm --filter @nexo-assist/web test:e2e` (apps must be running) | Login, chat, console claim, consulta |
 | Types / build | `pnpm typecheck` / `pnpm build` | Strict TypeScript across packages |
 
 Traceability: [`docs/TRACEABILITY.md`](docs/TRACEABILITY.md).
