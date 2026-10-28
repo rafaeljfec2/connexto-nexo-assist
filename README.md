@@ -140,14 +140,22 @@ Agent module layout and decision ADRs: [`docs/agent.md`](docs/agent.md), [`docs/
 - Duplicity: unresolved tickets of the same owner; strong ≥ 0.5 or equal error code; ambiguous 0.3–0.5; below 0.3 not duplicate.
 - Session cookie `httpOnly` + `SameSite=Lax`; TTL 15 minutes.
 - Demo auth: see **Acesso à aplicação** above.
-- Deploy is out of scope for this delivery.
+
+## Deploy
+
+| Surface | Where | URL |
+|---|---|---|
+| Web (`apps/web`) | Vercel project `nexo-assist` | https://nexo-assist.connexto.com.br |
+| API (`apps/api`) | FlowDeploy (`connexto-nexo-assist-api` on the Outcoders VPS) | https://api-nexo-assist.connexto.com.br |
+
+API health: `GET https://api-nexo-assist.connexto.com.br/health/live`. Production CORS allows the web origin above. LLM keys and `SESSION_SECRET` stay in the host env (not in the repo). Manifests: `apps/api/paasdeploy.json` + Traefik labels in `apps/api/docker-compose.yml`.
 
 ## Trade-offs and what would come next
 
 - The agent uses `@mastra/core` inside the Nest API process (not a second microservice or LangGraph). Ticket mutations stay behind `TicketGateway` + HITL; Annex A stays in `@nexo-assist/domain`. Scripted provider covers automated proof without OpenAI cost.
 - Help search is token/error-code based, not vector RAG.
 - Playwright covers smoke paths; expanding to the full five scripted flows with seeded overdue-card assertions would be the next UI hardening step.
-- Production auth (real passwords, MFA, rate limits) and deploy/observability remain deferred differentials.
+- Production auth (real passwords, MFA, rate limits) and richer deploy observability remain deferred differentials.
 
 ## Useful commands
 

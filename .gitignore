@@ -10,3 +10,4 @@ coverage
 package.json.tmp
 playwright-report
 test-results
+.vercel
