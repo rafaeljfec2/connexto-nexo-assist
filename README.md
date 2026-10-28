@@ -2,6 +2,14 @@
 
 Conversational IT service desk for the Beyond the Bytes technical challenge. Employees chat with an agent that proposes actions; a deterministic policy engine decides priority, SLA, duplicity and confirmation; ticket writes happen only after an exact draft version is confirmed.
 
+Deeper engineering notes: [`docs/README.md`](docs/README.md).
+
+## Prerequisites
+
+- Node.js `>=20` (see `engines` in root `package.json`)
+- pnpm `11.12.0` (see `packageManager` in root `package.json`)
+- Docker + Docker Compose (Postgres locally, or full-stack Compose)
+
 ## Quick start
 
 ### Local (pnpm)
@@ -10,11 +18,13 @@ Conversational IT service desk for the Beyond the Bytes technical challenge. Emp
 pnpm install
 docker compose up -d postgres
 cp .env.example .env
-# optional: set OPENAI_API_KEY for a real model
-pnpm --filter @nexo-assist/api db:migrate
-pnpm --filter @nexo-assist/api db:seed
+# optional: set OPENROUTER_API_KEY (default) or OPENAI_API_KEY for a real model
+pnpm db:migrate
+pnpm db:seed
 pnpm dev
 ```
+
+`pnpm db:migrate` / `pnpm db:seed` are root shortcuts for the API package. Re-running seed when `seed_meta` already has `nexo-assist-demo-v4` skips without duplicating users.
 
 ### Full stack (Docker)
 
@@ -23,13 +33,32 @@ cp .env.example .env
 docker compose up --build
 ```
 
-API image runs migrate + idempotent seed on start. Web and API images follow the same multi-stage pnpm pattern used in `connexto-digital-signer`.
+API image runs migrate + idempotent seed on start.
 
-- Web: http://localhost:3000  
-- API: http://localhost:3001  
+- Web: http://localhost:3000
+- API: http://localhost:3001
 - Postgres: `postgres://nexo:nexo@localhost:5432/nexo`
 
-LLM options in `.env`: `LLM_PROVIDER=openrouter` + `OPENROUTER_API_KEY` + `OPENROUTER_MODEL` (default `nvidia/nemotron-3.5-super-vl:free`), or `openai` + `OPENAI_API_KEY`, or `scripted` for offline/CI.
+### Environment (`.env.example`)
+
+| Variable | Role |
+|---|---|
+| `DATABASE_URL` | Postgres connection |
+| `API_PORT` / `NEXT_PUBLIC_API_URL` | API listen port and browser base URL |
+| `SESSION_SECRET` | Session cookie signing |
+| `CORS_ORIGIN` | Allowed web origin (default `http://localhost:3000`) |
+| `LLM_PROVIDER` | `openrouter` (default) \| `openai` \| `scripted` |
+| `OPENROUTER_*` / `OPENAI_*` | Keys and models for live providers |
+| `TICKET_FAULT` | `off` \| `unavailable` \| `fail_once` — ticket gateway fault injection |
+| `LOG_LEVEL` | Nest verbosity; agent business traces use context `AgentTrace` (`grep AgentTrace`) |
+
+### LLM choice (TECH-3)
+
+Runtime uses `@mastra/core` (`Agent` + `createTool` + `generate`) inside the Nest API process — the PRD preferred stack, without a second microservice.
+
+- **Default `openrouter`** + free Nemotron model: zero-cost evaluation turns with a real chat model.
+- **`openai`**: optional fallback when you prefer OpenAI models/keys.
+- **`scripted`**: deterministic offline/CI provider (no network, no token cost) used by the automated proof suite.
 
 ## Acesso à aplicação
 
@@ -43,15 +72,6 @@ Two functional profiles are seeded for evaluators. There is no public signup and
 | `carla.nunes@nexo.com.br` | `employee` | Extra employee fixture (console queue) |
 
 **Demo password rule (evaluation only):** any non-empty password is accepted for seeded emails (for example `demo`). Unknown email and empty password share one generic error. Passwords are not stored — the users table has no password column.
-
-### How to load demo data
-
-```bash
-pnpm --filter @nexo-assist/api db:migrate
-pnpm --filter @nexo-assist/api db:seed
-```
-
-Docker Compose runs migrate + idempotent seed on API start. Re-running seed when `seed_meta` already has `nexo-assist-demo-v4` skips without duplicating users.
 
 ### Sign in as employee
 
@@ -69,7 +89,7 @@ Role comes from the authenticated session on the API (`EmployeeGuard` / `Analyst
 
 ### Demo limitations
 
-- Any non-empty password for seeded emails only — not production auth
+- Demo auth only (see password rule above) — not production auth
 - Session cookie TTL is 15 minutes; “Manter conectado” does not extend it
 - No MFA, rate limits, or password recovery
 - “Suporte N2” in the console is a transfer destination label, not a login role
@@ -79,7 +99,7 @@ Role comes from the authenticated session on the API (`EmployeeGuard` / `Analyst
 
 1. Session resolves the employee; client-supplied user ids are ignored.
 2. `UsageGuard` enforces 30 employee messages / conversation, 4000 chars, one in-flight execution (atomic `busyUntil` claim), max 4 tool steps, last-10-message context, 20s provider timeout, 600 max output tokens. An open `waiting_analyst` / `with_analyst` conversation is reused — the API never opens a fresh `with_agent` thread to bypass pause or the message budget.
-3. Production turns use `@mastra/core` (`Agent` + `createTool` + `generate`). Model routing: `openrouter/<OPENROUTER_MODEL>` or `openai/<OPENAI_MODEL>`. Tools are only `search_help`, `list_my_tickets`, `get_ticket`, and `prepare_draft`. `LLM_PROVIDER=scripted` keeps a deterministic loop for CI without calling the model.
+3. Production turns use `@mastra/core`. Model routing: `openrouter/<OPENROUTER_MODEL>` or `openai/<OPENAI_MODEL>`. Tools are only `search_help`, `list_my_tickets`, `get_ticket`, and `prepare_draft`. `LLM_PROVIDER=scripted` keeps a deterministic loop for CI without calling the model.
 4. `@nexo-assist/domain` applies Annex A: priority, business-hour SLA (`America/Sao_Paulo`), duplicity thresholds, reopen window (168h inclusive), and draft confirmation phrases.
 5. Mutations go through `TicketGateway` with `operationId` idempotency (create runs in a DB transaction). Create / update / reopen / transfer are never model tools.
 6. Human handoff: explicit phrase (e.g. “quero falar com um analista”), critical priority (direct transfer), overdue/low-confidence stalls **offer** an analyst (chip + phrase; not silent auto-transfer). Accepted offers store a structured summary for the console.
@@ -94,7 +114,7 @@ Role comes from the authenticated session on the API (`EmployeeGuard` / `Analyst
 | Domain | `pnpm --filter @nexo-assist/domain test` | Priority, SLA, duplicity, transitions, confirmation, out-of-IT, confidence, draft completeness |
 | API + Postgres | `LLM_PROVIDER=scripted pnpm --filter @nexo-assist/api test` | Owner privacy, HITL, out-of-IT, unsure offer, ticket fault retry, conversation reload |
 | UI unit | `pnpm --filter @nexo-assist/web test` | Event labels + chat derivations |
-| UI e2e | `pnpm --filter @nexo-assist/web test:e2e` (apps must be running) | Login, chat, console claim, consulta |
+| UI e2e | Install browsers once: `pnpm --filter @nexo-assist/web exec playwright install` — then with apps running: `pnpm --filter @nexo-assist/web test:e2e` | Login, chat, console claim, consulta |
 | Types / build | `pnpm typecheck` / `pnpm build` | Strict TypeScript across packages |
 
 Traceability: [`docs/TRACEABILITY.md`](docs/TRACEABILITY.md).
@@ -109,6 +129,8 @@ packages/contracts Shared Zod schemas
 ```
 
 PostgreSQL is the source of truth for users, sessions, conversations, messages, drafts, tickets, history, help articles, operations and execution events. `localStorage` is not used as authority.
+
+Agent module layout and decision ADRs: [`docs/agent.md`](docs/agent.md), [`docs/architecture.md`](docs/architecture.md).
 
 ## Product readings documented from the PRD
 
@@ -135,6 +157,6 @@ pnpm test
 pnpm lint
 pnpm typecheck
 pnpm build
-pnpm --filter @nexo-assist/api db:migrate
-pnpm --filter @nexo-assist/api db:seed
+pnpm db:migrate
+pnpm db:seed
 ```
