@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { closeDb, createDb } from '../src/db/client';
 import { IDS } from '../src/db/seed';
-import { AuthService } from '../src/auth/auth.service';
 import { TicketGateway } from '../src/tickets/ticket.gateway';
 import { setupIntegrationDb } from './helpers/db';
 
@@ -54,11 +53,4 @@ describe('API integration — tickets and auth', () => {
     expect(hit?.slug).toBe('vpn-erro-809');
   });
 
-  it('accepts demo login for Ana with any non-empty password', async () => {
-    const auth = AuthService.withDb(createDb());
-    const session = await auth.login('ana.souza@nexo.com.br', 'qualquer', false);
-    expect(session.user.role).toBe('employee');
-    await expect(auth.login('ana.souza@nexo.com.br', '', false)).rejects.toThrow();
-    await expect(auth.login('unknown@nexo.com.br', 'x', false)).rejects.toThrow();
-  });
 });

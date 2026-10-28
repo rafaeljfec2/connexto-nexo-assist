@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AuthController } from './auth/auth.controller';
 import { AuthService } from './auth/auth.service';
-import { AuthGuard, AnalystGuard } from './auth/auth.guard';
+import { AuthGuard, AnalystGuard, EmployeeGuard } from './auth/auth.guard';
 import { ConversationsController } from './conversations/conversations.controller';
 import { ConversationsService } from './conversations/conversations.service';
 import { UsageGuard } from './conversations/usage.guard';
@@ -26,6 +26,7 @@ import { ConversationEventsService } from './events/conversation-events.service'
     AuthService,
     AuthGuard,
     AnalystGuard,
+    EmployeeGuard,
     ConversationsService,
     UsageGuard,
     AgentOrchestrator,

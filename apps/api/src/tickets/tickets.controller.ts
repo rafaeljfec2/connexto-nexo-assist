@@ -1,9 +1,9 @@
 import { Controller, Get, Inject, Param, Req, UseGuards } from '@nestjs/common';
-import { AuthGuard, type AuthedRequest } from '../auth/auth.guard';
+import { EmployeeGuard, type AuthedRequest } from '../auth/auth.guard';
 import { TicketGateway } from './ticket.gateway';
 
 @Controller('tickets')
-@UseGuards(AuthGuard)
+@UseGuards(EmployeeGuard)
 export class TicketsController {
   constructor(@Inject(TicketGateway) private readonly tickets: TicketGateway) {}
 

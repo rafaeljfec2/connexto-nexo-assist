@@ -16,7 +16,7 @@ import {
 import { ConfirmDraftRequestSchema, SendMessageRequestSchema } from '@nexo-assist/contracts';
 import type { Response } from 'express';
 import { eq } from 'drizzle-orm';
-import { AuthGuard, type AuthedRequest } from '../auth/auth.guard';
+import { EmployeeGuard, type AuthedRequest } from '../auth/auth.guard';
 import { createDb } from '../db/client';
 import { conversations } from '../db/schema';
 import { ConversationEventsService } from '../events/conversation-events.service';
@@ -24,7 +24,7 @@ import { openConversationEventStream } from '../events/sse-stream';
 import { ConversationsService } from './conversations.service';
 
 @Controller('conversations')
-@UseGuards(AuthGuard)
+@UseGuards(EmployeeGuard)
 export class ConversationsController {
   constructor(
     @Inject(ConversationsService) private readonly conversationsService: ConversationsService,

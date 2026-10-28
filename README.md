@@ -29,16 +29,51 @@ API image runs migrate + idempotent seed on start. Web and API images follow the
 - API: http://localhost:3001  
 - Postgres: `postgres://nexo:nexo@localhost:5432/nexo`
 
-Demo logins (any non-empty password):
-
-| Email | Role |
-|---|---|
-| `ana.souza@nexo.com.br` | Employee |
-| `rafael.lima@nexo.com.br` | Analyst |
-| `bruno.mendes@nexo.com.br` | Employee |
-| `carla.nunes@nexo.com.br` | Employee |
-
 Without `OPENAI_API_KEY`, set `LLM_PROVIDER=scripted` in `.env` so the chat uses the deterministic provider (also used by tests).
+
+## Acesso à aplicação
+
+Two functional profiles are seeded for evaluators. There is no public signup and no admin panel.
+
+| Email | Profile | Purpose |
+|---|---|---|
+| `ana.souza@nexo.com.br` | `employee` | Chat, ticket consult, handoff to analyst |
+| `rafael.lima@nexo.com.br` | `analyst` | Attendance console (claim / return / close) |
+| `bruno.mendes@nexo.com.br` | `employee` | Extra employee fixture (privacy / race) |
+| `carla.nunes@nexo.com.br` | `employee` | Extra employee fixture (console queue) |
+
+**Demo password rule (evaluation only):** any non-empty password is accepted for seeded emails (for example `demo`). Unknown email and empty password share one generic error. Passwords are not stored — the users table has no password column.
+
+### How to load demo data
+
+```bash
+pnpm --filter @nexo-assist/api db:migrate
+pnpm --filter @nexo-assist/api db:seed
+```
+
+Docker Compose runs migrate + idempotent seed on API start. Re-running seed when `seed_meta` already has `nexo-assist-demo-v3` skips without duplicating users.
+
+### Sign in as employee
+
+1. Open http://localhost:3000/login
+2. Use `ana.souza@nexo.com.br` and any non-empty password (or click the demo shortcut on the login form)
+3. You land on `/chat` — test conversation with the agent, ticket list/consulta, draft confirmation, and handoff phrases
+
+### Sign in as analyst
+
+1. Open http://localhost:3000/login
+2. Use `rafael.lima@nexo.com.br` and any non-empty password
+3. You land on `/console` — test queue filters, claim, return to agent, close, and analyst messages
+
+Role comes from the authenticated session on the API (`EmployeeGuard` / `AnalystGuard`). Hiding menus is not the security boundary.
+
+### Demo limitations
+
+- Any non-empty password for seeded emails only — not production auth
+- Session cookie TTL is 15 minutes; “Manter conectado” does not extend it
+- No MFA, rate limits, or password recovery
+- “Suporte N2” in the console is a transfer destination label, not a login role
+- No N1/N2 analyst hierarchy in auth
 
 ## How the agent decides
 
@@ -80,7 +115,7 @@ PostgreSQL is the source of truth for users, sessions, conversations, messages, 
 - Reopen: `now <= resolvedAt + 168h`. Does not create a new ticket.
 - Duplicity: unresolved tickets of the same owner; strong ≥ 0.5 or equal error code; ambiguous 0.3–0.5; below 0.3 not duplicate.
 - Session cookie `httpOnly` + `SameSite=Lax`; TTL 15 minutes.
-- Demo auth: seeded email + any non-empty password; unknown email and empty password share one generic error.
+- Demo auth: see **Acesso à aplicação** above.
 - Deploy is out of scope for this delivery.
 
 ## Trade-offs and what would come next
