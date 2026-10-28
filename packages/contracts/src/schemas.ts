@@ -68,6 +68,9 @@ export const ConversationSchema = z.object({
   analystId: z.string().uuid().nullable(),
   employeeMessageCount: z.number().int().nonnegative(),
   summary: z.string().nullable(),
+  lastEventSeq: z.number().int().nonnegative(),
+  activeExecutionId: z.string().uuid().nullable(),
+  busyUntil: z.string().datetime().nullable().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
@@ -78,9 +81,32 @@ export const MessageSchema = z.object({
   conversationId: z.string().uuid(),
   role: MessageRoleSchema,
   content: z.string().min(1),
+  clientMessageId: z.string().uuid().nullable().optional(),
   createdAt: z.string().datetime(),
 });
 export type Message = z.infer<typeof MessageSchema>;
+
+export const ConversationEventTypeSchema = z.enum([
+  'message.created',
+  'agent.started',
+  'agent.completed',
+  'agent.failed',
+  'agent.incomplete',
+  'conversation.updated',
+  'sync.required',
+]);
+export type ConversationEventType = z.infer<typeof ConversationEventTypeSchema>;
+
+export const ConversationEventSchema = z.object({
+  conversationId: z.string().uuid(),
+  seq: z.number().int().positive(),
+  type: ConversationEventTypeSchema,
+  version: z.number().int().positive(),
+  payload: z.record(z.unknown()),
+  createdAt: z.string().datetime(),
+  id: z.string().uuid().optional(),
+});
+export type ConversationEvent = z.infer<typeof ConversationEventSchema>;
 
 export const DraftSchema = z.object({
   id: z.string().uuid(),
@@ -158,5 +184,16 @@ export type LoginRequest = z.infer<typeof LoginRequestSchema>;
 
 export const SendMessageRequestSchema = z.object({
   content: z.string().min(1).max(4000),
+  clientMessageId: z.string().uuid().optional(),
 });
 export type SendMessageRequest = z.infer<typeof SendMessageRequestSchema>;
+
+export const SendMessageAcceptedSchema = z.object({
+  accepted: z.literal(true),
+  executionId: z.string().uuid().nullable(),
+  clientMessageId: z.string().uuid().nullable(),
+  employeeMessage: MessageSchema,
+  employeeMessageCount: z.number().int().nonnegative(),
+  conversationStatus: ConversationStatusSchema,
+});
+export type SendMessageAccepted = z.infer<typeof SendMessageAcceptedSchema>;
