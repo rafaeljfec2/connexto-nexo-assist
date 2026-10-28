@@ -11,7 +11,8 @@ Maps PRD evaluation criteria and critical requirements to delivery frontiers, do
 | Transparency — actions above replies | UI lists orchestrator execution events | 4, 5 | `execution_events` + chat chips | Playwright employee chat flow |
 | Interface fidelity — five screens | Login, chat, overdue card, console queue, human attendance | 5, 6 | `apps/web` | Playwright five flows |
 | Console L1–L4 / T1–T3 / A1–A4 | See `docs/SPEC_CONSOLE_ATENDENTE.md` | 6 | Console panes + `ConsoleService` | Integration return-from-waiting; Playwright claim flow |
-| Architecture separation | Web / agent / tickets separated by contract | 2, 4 | `TicketGateway`, no repo import from Mastra tools | Module boundary + typecheck |
+| Architecture separation | Web / agent / tickets separated by contract | 2, 4 | `@mastra/core` Agent tools call `TicketGateway` / help search only — no ticket repo import | Module boundary + typecheck |
+| Agent stack (PRD) | Mastra (preference) or LangGraph.js | 4 | `@mastra/core` `Agent` + `createTool` + `generate` in `apps/api`; scripted bypass for CI | Dependency in `apps/api/package.json`; integration tests with `LLM_PROVIDER=scripted` |
 | Strict typing, no `any` | TypeScript strict across packages | 1–6 | `tsconfig.base.json` | `pnpm typecheck` |
 | Privacy — own tickets only | Employee cannot read another employee's ticket | 2, 3 | `TicketGateway` owner check | Integration test (INC-20150) |
 | Concurrent analyst claim | Second claim conflicts | 6 | Conditional `UPDATE` on `waiting_analyst` | Integration race test |
