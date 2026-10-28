@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, ApiError, type Message, type User } from '@/lib/api';
+import { subscribeConsoleEvents } from '@/lib/sse';
 import { AnalystShell } from '@/components/AnalystShell';
 import { ConsoleChatPane } from '@/components/console/ConsoleChatPane';
 import { ConsoleQueueList } from '@/components/console/ConsoleQueueList';
@@ -99,6 +100,35 @@ export default function ConsolePage() {
       setBusy(false);
     }
   }
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+    const sub = subscribeConsoleEvents(selectedId, 0, {
+      onEvent: (event) => {
+        if (
+          event.type === 'message.created' ||
+          event.type === 'conversation.updated' ||
+          event.type === 'agent.completed' ||
+          event.type === 'agent.started'
+        ) {
+          void loadQueues(filter);
+          if (selectedId && event.conversationId === selectedId) {
+            void refreshDetail(selectedId);
+          }
+        }
+      },
+      onSyncRequired: () => {
+        void loadQueues(filter);
+        if (selectedId) {
+          void refreshDetail(selectedId);
+        }
+      },
+    });
+    return () => sub.close();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, selectedId, filter]);
 
   async function refreshDetail(id: string) {
     const data = await api.getConsoleConversation(id);

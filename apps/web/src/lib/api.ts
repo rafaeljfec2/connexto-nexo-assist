@@ -81,10 +81,21 @@ export type ConversationPayload = {
     employeeMessageCount: number;
     analystId: string | null;
     summary: string | null;
+    lastEventSeq?: number;
+    activeExecutionId?: string | null;
   } | null;
   messages: Message[];
   events: ExecutionEvent[];
   draft: Draft | null;
+};
+
+export type SendMessageAccepted = {
+  accepted: true;
+  executionId: string | null;
+  clientMessageId: string | null;
+  employeeMessage: Message;
+  employeeMessageCount: number;
+  conversationStatus: string;
 };
 
 export const api = {
@@ -96,15 +107,10 @@ export const api = {
   logout: () => request<{ ok: boolean }>('/auth/logout', { method: 'POST' }),
   me: () => request<{ user: User }>('/auth/me'),
   currentConversation: () => request<ConversationPayload>('/conversations/current'),
-  sendMessage: (content: string) =>
-    request<{
-      agentMessage: Message | null;
-      events: ExecutionEvent[];
-      draft: Draft | null;
-      employeeMessageCount: number;
-    }>('/conversations/current/messages', {
+  sendMessage: (content: string, clientMessageId?: string) =>
+    request<SendMessageAccepted>('/conversations/current/messages', {
       method: 'POST',
-      body: JSON.stringify({ content }),
+      body: JSON.stringify({ content, clientMessageId }),
     }),
   confirmDraft: (draftId: string, version: number, confirm: boolean) =>
     request<{ ok: boolean; mutation: unknown }>('/conversations/current/drafts/confirm', {
