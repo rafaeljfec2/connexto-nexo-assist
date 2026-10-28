@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { Logo } from '@/components/Logo';
-import { LogOutIcon, MessageIcon, UserIcon } from '@/components/icons';
+import { ChevronRightIcon, LogOutIcon, MessageIcon, UserIcon } from '@/components/icons';
 import { api, type User } from '@/lib/api';
 import { cx, initials } from '@/lib/ui';
 
@@ -31,7 +31,7 @@ export function AppShell({ user, breadcrumb, status, children }: AppShellProps) 
           <Logo size={20} />
         </div>
 
-        <nav className="mt-8 flex flex-col gap-0.5">
+        <nav className="mt-[22px] flex flex-col gap-0.5">
           {nav.map((item) => {
             const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
             const Icon = item.icon;
@@ -54,8 +54,8 @@ export function AppShell({ user, breadcrumb, status, children }: AppShellProps) 
         </nav>
 
         <div className="mt-auto">
-          <div className="flex items-center gap-2.5 px-2 py-3.5">
-            <div className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-primary-soft text-xs font-bold text-primary-text">
+          <div className="flex items-center gap-2.5 border-t border-rule px-2 pb-1 pt-3.5">
+            <div className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-primary-soft text-[12.5px] font-bold text-primary-text">
               {initials(user.name)}
             </div>
             <div className="min-w-0">
@@ -81,9 +81,7 @@ export function AppShell({ user, breadcrumb, status, children }: AppShellProps) 
         <header className="flex h-16 shrink-0 items-center justify-between gap-4 border-b border-rule px-8">
           <div className="flex items-center gap-2 text-[13.5px]">
             <span className="text-ink-3">Service desk de TI</span>
-            <span className="text-ink-3" aria-hidden>
-              ›
-            </span>
+            <ChevronRightIcon width={14} height={14} className="text-ink-3" aria-hidden />
             <span className="font-semibold text-ink">{breadcrumb}</span>
           </div>
           {status}

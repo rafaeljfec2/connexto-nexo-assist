@@ -39,6 +39,11 @@ test.describe('Nexo Assist smoke', () => {
     await expect(page.getByRole('heading', { name: 'Meu perfil' })).toBeVisible();
     await expect(page.getByText('Ana Souza').first()).toBeVisible();
     await expect(page.getByText('ana.souza@nexo.com.br').first()).toBeVisible();
+    await expect(page.getByText('Gerenciado pela TI')).toBeVisible();
+    await expect(page.getByText('Alterada há 42 dias')).toBeVisible();
+    await expect(
+      page.getByText('Enviaremos um link de redefinição para ana.souza@nexo.com.br.'),
+    ).toBeVisible();
     await expect(page.getByRole('button', { name: 'Redefinir senha' })).toBeDisabled();
   });
 
