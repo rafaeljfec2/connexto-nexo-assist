@@ -204,42 +204,6 @@ export default function LoginPage() {
               {loading ? 'Entrando…' : 'Entrar'}
             </Button>
 
-            <div className="rounded-lg bg-desk px-3 py-2.5 text-sm text-ink-2">
-              <p className="font-semibold text-ink">Acesso demonstração</p>
-              <ul className="mt-1.5 space-y-1 text-[13.5px] leading-5">
-                <li>
-                  Funcionário:{' '}
-                  <button
-                    type="button"
-                    className="font-medium text-primary-text underline-offset-2 hover:underline"
-                    onClick={() => {
-                      setEmail('ana.souza@nexo.com.br');
-                      setPassword('demo');
-                    }}
-                  >
-                    ana.souza@nexo.com.br
-                  </button>
-                </li>
-                <li>
-                  Analista:{' '}
-                  <button
-                    type="button"
-                    className="font-medium text-primary-text underline-offset-2 hover:underline"
-                    onClick={() => {
-                      setEmail('rafael.lima@nexo.com.br');
-                      setPassword('demo');
-                    }}
-                  >
-                    rafael.lima@nexo.com.br
-                  </button>
-                </li>
-              </ul>
-              <p className="mt-1.5 text-[12.5px] text-ink-3">
-                Qualquer senha não vazia funciona (ex.: <span className="font-medium">demo</span>).
-                Exclusivo do ambiente de avaliação.
-              </p>
-            </div>
-
             <Link href="/chat" className="sr-only">
               Chat
             </Link>

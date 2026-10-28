@@ -15,9 +15,6 @@ test.describe('Nexo Assist smoke', () => {
     await expect(page.getByText('Ligue no ramal 4000')).toBeVisible();
     await expect(page.getByRole('checkbox', { name: 'Manter conectado neste computador' })).toBeChecked();
     await expect(page.getByRole('button', { name: 'Entrar' })).toBeVisible();
-    await expect(page.getByText('Acesso demonstração')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'ana.souza@nexo.com.br' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'rafael.lima@nexo.com.br' })).toBeVisible();
   });
 
   test('employee can open chat after login', async ({ page }) => {

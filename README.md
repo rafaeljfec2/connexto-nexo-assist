@@ -76,7 +76,7 @@ Two functional profiles are seeded for evaluators. There is no public signup and
 ### Sign in as employee
 
 1. Open http://localhost:3000/login
-2. Use `ana.souza@nexo.com.br` and any non-empty password (or click the demo shortcut on the login form)
+2. Use `ana.souza@nexo.com.br` and any non-empty password
 3. You land on `/chat` — test conversation with the agent, ticket list/consulta, draft confirmation, and handoff phrases
 
 ### Sign in as analyst
