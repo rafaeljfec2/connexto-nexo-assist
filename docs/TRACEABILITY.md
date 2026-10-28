@@ -24,7 +24,7 @@ Maps PRD evaluation criteria and critical requirements to delivery frontiers, do
 | Agent paused with analyst | No auto agent reply in `waiting_analyst` / `with_analyst` / `closed` | 4 | Orchestrator status gate | API unit/integration test |
 | 31st employee message | Rejected without model call | 3 | `UsageGuard` | Integration test with mock provider counter |
 | Tool step ceiling | 5th tool step does not execute | 4 | Orchestrator step limiter | Integration/unit test |
-| Communication | README documents run, decisions, proof, trade-offs | 7 | `README.md`, `.env.example`, Compose | Manual review |
+| Communication | README documents run, decisions, proof, trade-offs | 7 | `README.md`, `.env.example`, Compose; deeper notes in `docs/README.md` | Manual review |
 | Deploy | Out of scope (differential) | — | — | Documented as deferred |
 | Consulta C1–C9 — status → list → select → overdue | See `docs/SPEC_CONSULTA_CHAMADO.md` | 4, 5 | Orchestrator `get_ticket` + `ticket.inspect` / `sla.compute_due`; chat picker + detail card | Integration consulta flow; chip-label unit tests; Playwright consulta |
 
