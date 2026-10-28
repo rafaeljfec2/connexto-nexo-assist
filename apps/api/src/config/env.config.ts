@@ -9,6 +9,9 @@ export type EnvSnapshot = {
   readonly openaiApiKey: string | undefined;
   readonly openaiBaseUrl: string;
   readonly openaiModel: string;
+  readonly openrouterApiKey: string | undefined;
+  readonly openrouterBaseUrl: string;
+  readonly openrouterModel: string;
   readonly ticketFault: string;
   readonly sessionSecret: string | undefined;
 };
@@ -93,6 +96,13 @@ export class EnvConfig {
         this.get('OPENAI_BASE_URL', 'https://api.openai.com/v1') ??
         'https://api.openai.com/v1',
       openaiModel: this.get('OPENAI_MODEL', 'gpt-4.1-mini') ?? 'gpt-4.1-mini',
+      openrouterApiKey: this.get('OPENROUTER_API_KEY'),
+      openrouterBaseUrl:
+        this.get('OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1') ??
+        'https://openrouter.ai/api/v1',
+      openrouterModel:
+        this.get('OPENROUTER_MODEL', 'nvidia/nemotron-3.5-super-vl:free') ??
+        'nvidia/nemotron-3.5-super-vl:free',
       ticketFault: this.get('TICKET_FAULT', 'off') ?? 'off',
       sessionSecret: this.get('SESSION_SECRET'),
     };

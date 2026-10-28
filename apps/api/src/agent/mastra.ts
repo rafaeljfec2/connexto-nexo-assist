@@ -49,9 +49,31 @@ type TurnCtx = {
   intent: string | null;
 };
 
-function resolveModelId(): string {
+/**
+ * Mastra model router id: `provider/model`.
+ * OpenRouter: `openrouter/nvidia/nemotron-3.5-super-vl:free` + OPENROUTER_API_KEY.
+ */
+export function resolveModelId(): string {
+  const provider = (process.env.LLM_PROVIDER ?? 'openai').toLowerCase();
+  if (provider === 'openrouter') {
+    const model =
+      process.env.OPENROUTER_MODEL ??
+      process.env.OPENAI_MODEL ??
+      'nvidia/nemotron-3.5-super-vl:free';
+    if (model.startsWith('openrouter/')) {
+      return model;
+    }
+    return `openrouter/${model}`;
+  }
   const model = process.env.OPENAI_MODEL ?? 'gpt-4.1-mini';
-  return model.includes('/') ? model : `openai/${model}`;
+  if (model.startsWith('openai/') || model.startsWith('openrouter/')) {
+    return model;
+  }
+  // Bare OpenAI ids only — avoid treating openrouter-style `org/model` as already routed.
+  if (model.includes('/') && !model.startsWith('gpt-') && !model.startsWith('o1') && !model.startsWith('o3')) {
+    return model;
+  }
+  return `openai/${model}`;
 }
 
 function buildTools(ctx: TurnCtx) {

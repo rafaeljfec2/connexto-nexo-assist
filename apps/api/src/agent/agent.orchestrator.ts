@@ -126,7 +126,7 @@ export class AgentOrchestrator {
 
     if (!this.provider) {
       throw new ServiceUnavailableException(
-        'O modelo de IA está indisponível. Configure OPENAI_API_KEY ou LLM_PROVIDER=scripted.',
+        'O modelo de IA está indisponível. Configure OPENROUTER_API_KEY (LLM_PROVIDER=openrouter), OPENAI_API_KEY, ou LLM_PROVIDER=scripted.',
       );
     }
 

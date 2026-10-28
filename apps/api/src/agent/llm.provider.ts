@@ -141,6 +141,18 @@ export function createLlmProvider(): LlmProvider | null {
   if (mode === 'scripted') {
     return new ScriptedLlmProvider();
   }
+  if (mode === 'openrouter') {
+    const key =
+      process.env.OPENROUTER_API_KEY ?? process.env.ORCHESTRATOR_API_KEY;
+    if (!key) {
+      return null;
+    }
+    return new OpenAiCompatibleProvider(
+      key,
+      process.env.OPENROUTER_BASE_URL ?? 'https://openrouter.ai/api/v1',
+      process.env.OPENROUTER_MODEL ?? 'nvidia/nemotron-3.5-super-vl:free',
+    );
+  }
   const key = process.env.OPENAI_API_KEY;
   if (!key) {
     return null;

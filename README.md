@@ -29,7 +29,7 @@ API image runs migrate + idempotent seed on start. Web and API images follow the
 - API: http://localhost:3001  
 - Postgres: `postgres://nexo:nexo@localhost:5432/nexo`
 
-Without `OPENAI_API_KEY`, set `LLM_PROVIDER=scripted` in `.env` so the chat uses the deterministic provider (also used by tests).
+LLM options in `.env`: `LLM_PROVIDER=openrouter` + `OPENROUTER_API_KEY` + `OPENROUTER_MODEL` (default `nvidia/nemotron-3.5-super-vl:free`), or `openai` + `OPENAI_API_KEY`, or `scripted` for offline/CI.
 
 ## Acesso à aplicação
 
@@ -79,7 +79,7 @@ Role comes from the authenticated session on the API (`EmployeeGuard` / `Analyst
 
 1. Session resolves the employee; client-supplied user ids are ignored.
 2. `UsageGuard` enforces 30 employee messages / conversation, 4000 chars, one in-flight execution (atomic `busyUntil` claim), max 4 tool steps, last-10-message context, 20s provider timeout, 600 max output tokens. An open `waiting_analyst` / `with_analyst` conversation is reused — the API never opens a fresh `with_agent` thread to bypass pause or the message budget.
-3. Production turns use `@mastra/core` (`Agent` + `createTool` + `generate`, model `openai/<OPENAI_MODEL>`). Tools are only `search_help`, `list_my_tickets`, `get_ticket`, and `prepare_draft`. `LLM_PROVIDER=scripted` keeps a deterministic loop for CI without calling the model.
+3. Production turns use `@mastra/core` (`Agent` + `createTool` + `generate`). Model routing: `openrouter/<OPENROUTER_MODEL>` or `openai/<OPENAI_MODEL>`. Tools are only `search_help`, `list_my_tickets`, `get_ticket`, and `prepare_draft`. `LLM_PROVIDER=scripted` keeps a deterministic loop for CI without calling the model.
 4. `@nexo-assist/domain` applies Annex A: priority, business-hour SLA (`America/Sao_Paulo`), duplicity thresholds, reopen window (168h inclusive), and draft confirmation phrases.
 5. Mutations go through `TicketGateway` with `operationId` idempotency (create runs in a DB transaction). Create / update / reopen / transfer are never model tools.
 6. Human handoff requires an explicit phrase (e.g. “quero falar com um analista”) or a critical-priority policy decision — not a bare “analista” substring.

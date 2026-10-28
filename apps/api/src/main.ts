@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { ZodError } from 'zod';
+import { resolveModelId } from './agent/mastra';
 import { EnvConfig } from './config/env.config';
 import { runMigrations } from './db/migrate';
 import { AppModule } from './app.module';
@@ -95,6 +96,11 @@ async function bootstrap(): Promise<void> {
 
   await app.listen(env.apiPort);
   bootstrapLogger.log(`API listening on http://localhost:${env.apiPort}`);
+  if (env.llmProvider === 'scripted') {
+    bootstrapLogger.log('LLM: scripted (deterministic, no remote model)');
+  } else {
+    bootstrapLogger.log(`LLM: provider=${env.llmProvider} model=${resolveModelId()}`);
+  }
 }
 
 bootstrap().catch((err: unknown) => {
