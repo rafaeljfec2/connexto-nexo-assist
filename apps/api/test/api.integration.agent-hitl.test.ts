@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { eq } from 'drizzle-orm';
 import { closeDb, createDb } from '../src/db/client';
-import { conversations, drafts, tickets } from '../src/db/schema';
+import { conversations, drafts, messages, tickets } from '../src/db/schema';
 import { IDS } from '../src/db/seed';
 import { AgentOrchestrator } from '../src/agent/agent.orchestrator';
 import { PolicyEngine } from '../src/agent/policy.engine';
@@ -73,6 +74,15 @@ describe('API integration — agent HITL drafts', () => {
     expect(confirmed.mutation).toBeTruthy();
     const afterCount = (await db.select().from(tickets)).length;
     expect(afterCount).toBe(beforeCount + 1);
+
+    const ticketNumber = String(confirmed.mutation?.['number'] ?? '');
+    expect(ticketNumber).toMatch(/^(INC|REQ)-\d+$/);
+    const agentMessages = await db
+      .select()
+      .from(messages)
+      .where(eq(messages.conversationId, conv!.id));
+    const feedback = agentMessages.filter((row) => row.role === 'agent').at(-1);
+    expect(feedback?.content).toContain(`Criei o chamado ${ticketNumber}`);
   });
 
   it('confirming the same draft twice does not create a second ticket', async () => {

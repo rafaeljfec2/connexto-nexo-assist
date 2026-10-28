@@ -173,7 +173,7 @@ export class AgentOrchestrator {
     readonly version: number;
     readonly confirm: boolean;
   }) {
-    return confirmDraftAction(this.db, this.tickets, this.policy, input);
+    return confirmDraftAction(this.db, this.tickets, this.policy, this.events, input);
   }
 
   async persistAgentOutcome(input: {

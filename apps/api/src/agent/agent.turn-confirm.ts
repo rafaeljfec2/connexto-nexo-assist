@@ -4,7 +4,7 @@ import type { AppDatabase } from '../db/client';
 import { drafts } from '../db/schema';
 import type { TicketGateway } from '../tickets/ticket.gateway';
 import type { PolicyEngine } from './policy.engine';
-import { applyDraft, type DraftRow } from './agent.draft-store';
+import { applyDraft, formatDraftConfirmFeedback, type DraftRow } from './agent.draft-store';
 import type { FailExecution, PersistAgentOutcome, TurnEvent } from './agent.types';
 export async function tryHandleDraftConfirmation(input: {
   readonly db: AppDatabase;
@@ -40,7 +40,7 @@ export async function tryHandleDraftConfirmation(input: {
       input.executionId,
     );
     events.push({
-      intent: 'create',
+      intent: String(input.pendingDraft.action),
       tool: null,
       rule: confirmation.rule,
       result: 'draft_confirmed',
@@ -49,7 +49,11 @@ export async function tryHandleDraftConfirmation(input: {
     await input.persistAgentOutcome({
       conversationId: input.conversationId,
       executionId: input.executionId,
-      agentContent: `Pronto. Operação confirmada: ${JSON.stringify(mutation)}.`,
+      agentContent: formatDraftConfirmFeedback({
+        confirmed: true,
+        action: input.pendingDraft.action,
+        mutation,
+      }),
       events,
       draft: null,
       status: 'with_agent',
@@ -73,7 +77,11 @@ export async function tryHandleDraftConfirmation(input: {
     await input.persistAgentOutcome({
       conversationId: input.conversationId,
       executionId: input.executionId,
-      agentContent: 'Rascunho cancelado. Como posso ajudar agora?',
+      agentContent: formatDraftConfirmFeedback({
+        confirmed: false,
+        action: input.pendingDraft.action,
+        mutation: null,
+      }),
       events,
       draft: null,
       status: 'with_agent',

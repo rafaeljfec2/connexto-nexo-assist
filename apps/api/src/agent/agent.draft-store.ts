@@ -4,7 +4,8 @@ import { computeDueAt, evaluateConfirmation } from '@nexo-assist/domain';
 import type { TicketPriority } from '@nexo-assist/contracts';
 import { randomUUID } from 'node:crypto';
 import type { AppDatabase } from '../db/client';
-import { drafts, executionEvents, operations } from '../db/schema';
+import { drafts, executionEvents, messages, operations } from '../db/schema';
+import type { ConversationEventsService } from '../events/conversation-events.service';
 import { logDraftConfirm } from '../observability/agent-trace.log';
 import type { PolicyEngine } from './policy.engine';
 import { toDuplicateCandidates } from './policy.engine';
@@ -12,6 +13,41 @@ import type { TicketGateway } from '../tickets/ticket.gateway';
 import type { TurnEvent } from './agent.types';
 
 export type DraftRow = typeof drafts.$inferSelect;
+
+/** User-facing chat feedback after HITL confirm/reject (button or free text). */
+export function formatDraftConfirmFeedback(input: {
+  readonly confirmed: boolean;
+  readonly action: string;
+  readonly mutation: Record<string, unknown> | null;
+}): string {
+  if (!input.confirmed) {
+    return 'Rascunho cancelado. Como posso ajudar agora?';
+  }
+  const number =
+    typeof input.mutation?.['number'] === 'string' ? input.mutation['number'] : null;
+  switch (input.action) {
+    case 'create':
+      return number
+        ? `Pronto. Criei o chamado ${number}. Ele está na fila de analistas.`
+        : 'Pronto. Criei o chamado. Ele está na fila de analistas.';
+    case 'update':
+      return number
+        ? `Pronto. Atualizei o chamado ${number} com as novas informações.`
+        : 'Pronto. Atualizei o chamado com as novas informações.';
+    case 'reopen':
+      return number
+        ? `Pronto. Reabri o chamado ${number}.`
+        : 'Pronto. Reabri o chamado.';
+    case 'transfer':
+      return number
+        ? `Pronto. Transfiri o chamado ${number} para a fila de analistas.`
+        : 'Pronto. Transfiri o chamado para a fila de analistas.';
+    default:
+      return number
+        ? `Pronto. Operação confirmada no chamado ${number}.`
+        : 'Pronto. Operação confirmada.';
+  }
+}
 
 export async function getPendingDraft(
   db: AppDatabase,
@@ -114,6 +150,7 @@ export async function confirmDraftAction(
   db: AppDatabase,
   tickets: TicketGateway,
   policy: PolicyEngine,
+  eventsService: ConversationEventsService,
   input: {
     readonly employeeId: string;
     readonly conversationId: string;
@@ -160,11 +197,16 @@ export async function confirmDraftAction(
   const executionId = randomUUID();
   if (decision.kind === 'confirm') {
     const mutation = await applyDraft(db, tickets, policy, draft, input.employeeId, executionId);
-    await db.insert(executionEvents).values({
+    const agentContent = formatDraftConfirmFeedback({
+      confirmed: true,
+      action: draft.action,
+      mutation,
+    });
+    await persistDraftConfirmFeedback(eventsService, {
       conversationId: input.conversationId,
       executionId,
+      agentContent,
       intent: String(draft.action),
-      tool: null,
       rule: decision.rule,
       result: 'draft_confirmed',
       justification: 'Confirmed via UI button with exact version.',
@@ -181,6 +223,20 @@ export async function confirmDraftAction(
   }
   if (decision.kind === 'reject') {
     await db.update(drafts).set({ status: 'rejected' }).where(eq(drafts.id, draft.id));
+    const agentContent = formatDraftConfirmFeedback({
+      confirmed: false,
+      action: draft.action,
+      mutation: null,
+    });
+    await persistDraftConfirmFeedback(eventsService, {
+      conversationId: input.conversationId,
+      executionId,
+      agentContent,
+      intent: null,
+      rule: decision.rule,
+      result: 'draft_rejected',
+      justification: 'Rejected via UI button with exact version.',
+    });
     logDraftConfirm({
       conversationId: input.conversationId,
       draftId: input.draftId,
@@ -194,6 +250,61 @@ export async function confirmDraftAction(
   throw new UnprocessableEntityException(
     'reason' in decision ? decision.reason : 'Confirmação inválida.',
   );
+}
+
+async function persistDraftConfirmFeedback(
+  eventsService: ConversationEventsService,
+  input: {
+    readonly conversationId: string;
+    readonly executionId: string;
+    readonly agentContent: string;
+    readonly intent: string | null;
+    readonly rule: string;
+    readonly result: string;
+    readonly justification: string;
+  },
+): Promise<void> {
+  await eventsService.withConversationLock(input.conversationId, async (tx) => {
+    const [agentMessage] = await tx
+      .insert(messages)
+      .values({
+        conversationId: input.conversationId,
+        role: 'agent',
+        content: input.agentContent,
+      })
+      .returning();
+    if (!agentMessage) {
+      throw new Error('Failed to persist draft confirmation feedback');
+    }
+    await tx.insert(executionEvents).values({
+      conversationId: input.conversationId,
+      executionId: input.executionId,
+      messageId: agentMessage.id,
+      intent: input.intent,
+      tool: null,
+      rule: input.rule,
+      result: input.result,
+      justification: input.justification,
+    });
+    await eventsService.appendInTx(tx, {
+      conversationId: input.conversationId,
+      type: 'message.created',
+      payload: {
+        messageId: agentMessage.id,
+        role: 'agent',
+        content: agentMessage.content,
+        executionId: input.executionId,
+      },
+    });
+    await eventsService.appendInTx(tx, {
+      conversationId: input.conversationId,
+      type: 'agent.completed',
+      payload: {
+        executionId: input.executionId,
+        messageId: agentMessage.id,
+      },
+    });
+  });
 }
 
 export async function handlePrepareDraft(input: {
