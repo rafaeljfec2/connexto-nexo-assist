@@ -21,6 +21,7 @@ import {
   acceptHumanMessage,
   type AcceptMessageResult,
 } from './agent.accept';
+import { logTurnStarted } from '../observability/agent-trace.log';
 import { confirmDraftAction, type DraftRow } from './agent.draft-store';
 import { failExecution, persistAgentOutcome } from './agent.persist';
 import { runAgentTurn } from './agent.turn-runner';
@@ -135,6 +136,12 @@ export class AgentOrchestrator {
         conversation,
         content: input.content,
         clientMessageId: input.clientMessageId ?? null,
+      });
+      logTurnStarted({
+        conversationId: conversation.id,
+        executionId: accepted.executionId,
+        employeeId: conversation.employeeId,
+        contentPreview: input.content,
       });
       this.scheduleExecution({
         conversationId: conversation.id,

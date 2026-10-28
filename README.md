@@ -49,6 +49,7 @@ Without `OPENAI_API_KEY`, set `LLM_PROVIDER=scripted` in `.env` so the chat uses
 5. Mutations go through `TicketGateway` with `operationId` idempotency (create runs in a DB transaction). Create / update / reopen / transfer are never model tools.
 6. Human handoff requires an explicit phrase (e.g. “quero falar com um analista”) or a critical-priority policy decision — not a bare “analista” substring.
 7. Execution events are persisted and shown as chips above agent replies.
+8. Agent turns also emit Nest `Logger` lines under context `AgentTrace` (`turn.started` → `turn.event` rules/tools → `turn.completed` / `turn.failed`, plus `draft.confirm`). Filter API stdout with `grep AgentTrace`. Set `LOG_LEVEL=debug` for more Nest verbosity (default `log`).
 
 ## How decision quality was proven
 

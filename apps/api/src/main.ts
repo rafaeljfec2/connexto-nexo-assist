@@ -66,11 +66,25 @@ class SafeExceptionFilter implements ExceptionFilter {
   }
 }
 
+function nestLogLevels(): Array<'error' | 'warn' | 'log' | 'debug' | 'verbose'> {
+  const raw = (process.env.LOG_LEVEL ?? 'log').toLowerCase().trim();
+  if (raw === 'debug' || raw === 'verbose') {
+    return ['error', 'warn', 'log', 'debug', 'verbose'];
+  }
+  if (raw === 'warn') {
+    return ['error', 'warn'];
+  }
+  if (raw === 'error') {
+    return ['error'];
+  }
+  return ['error', 'warn', 'log'];
+}
+
 async function bootstrap(): Promise<void> {
   const env = EnvConfig.getInstance().load().snapshot();
   bootstrapLogger.log('Running database migrations...');
   await runMigrations(env.databaseUrl);
-  const app = await NestFactory.create(AppModule, { logger: ['error', 'warn', 'log'] });
+  const app = await NestFactory.create(AppModule, { logger: nestLogLevels() });
   app.enableShutdownHooks();
   app.use(cookieParser());
   app.enableCors({

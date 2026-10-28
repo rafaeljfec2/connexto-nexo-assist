@@ -1,11 +1,14 @@
-import { Logger } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
 import { conversations, executionEvents, messages } from '../db/schema';
 import type { ConversationEventsService } from '../events/conversation-events.service';
+import {
+  logBusinessEvent,
+  logTurnCompleted,
+  logTurnFailed,
+  logTurnFencedDiscard,
+} from '../observability/agent-trace.log';
 import type { DraftRow } from './agent.draft-store';
 import type { TurnEvent } from './agent.types';
-
-const logger = new Logger('AgentPersist');
 
 export async function persistAgentOutcome(
   eventsService: ConversationEventsService,
@@ -39,9 +42,10 @@ export async function persistAgentOutcome(
       .returning({ id: conversations.id });
 
     if (!fenced) {
-      logger.warn(
-        `Fenced discard for execution ${input.executionId} on ${input.conversationId}`,
-      );
+      logTurnFencedDiscard({
+        conversationId: input.conversationId,
+        executionId: input.executionId,
+      });
       return null;
     }
 
@@ -58,6 +62,11 @@ export async function persistAgentOutcome(
     }
 
     for (const event of input.events) {
+      logBusinessEvent({
+        conversationId: input.conversationId,
+        executionId: input.executionId,
+        event,
+      });
       await tx.insert(executionEvents).values({
         conversationId: input.conversationId,
         executionId: input.executionId,
@@ -104,6 +113,14 @@ export async function persistAgentOutcome(
       .from(executionEvents)
       .where(eq(executionEvents.executionId, input.executionId));
 
+    logTurnCompleted({
+      conversationId: input.conversationId,
+      executionId: input.executionId,
+      status: input.status,
+      draftVersion: input.draft?.version ?? null,
+      eventCount: input.events.length,
+    });
+
     return {
       agentMessage,
       events: storedEvents,
@@ -121,6 +138,11 @@ export async function failExecution(
     readonly agentContent: string | null;
   },
 ): Promise<void> {
+  logTurnFailed({
+    conversationId: input.conversationId,
+    executionId: input.executionId,
+    reason: input.reason,
+  });
   await eventsService.withConversationLock(input.conversationId, async (tx) => {
     const [fenced] = await tx
       .update(conversations)

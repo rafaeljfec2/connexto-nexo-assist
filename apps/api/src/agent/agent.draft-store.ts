@@ -5,6 +5,7 @@ import type { TicketPriority } from '@nexo-assist/contracts';
 import { randomUUID } from 'node:crypto';
 import type { AppDatabase } from '../db/client';
 import { drafts, executionEvents, operations } from '../db/schema';
+import { logDraftConfirm } from '../observability/agent-trace.log';
 import type { PolicyEngine } from './policy.engine';
 import { toDuplicateCandidates } from './policy.engine';
 import type { TicketGateway } from '../tickets/ticket.gateway';
@@ -168,10 +169,26 @@ export async function confirmDraftAction(
       result: 'draft_confirmed',
       justification: 'Confirmed via UI button with exact version.',
     });
+    logDraftConfirm({
+      conversationId: input.conversationId,
+      draftId: input.draftId,
+      version: input.version,
+      confirm: true,
+      rule: decision.rule,
+      result: 'draft_confirmed',
+    });
     return { ok: true as const, mutation };
   }
   if (decision.kind === 'reject') {
     await db.update(drafts).set({ status: 'rejected' }).where(eq(drafts.id, draft.id));
+    logDraftConfirm({
+      conversationId: input.conversationId,
+      draftId: input.draftId,
+      version: input.version,
+      confirm: false,
+      rule: decision.rule,
+      result: 'draft_rejected',
+    });
     return { ok: true as const, mutation: null };
   }
   throw new UnprocessableEntityException(
