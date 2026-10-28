@@ -36,6 +36,23 @@ describe('evaluateConfirmation', () => {
     expect(result.kind).toBe('confirm');
   });
 
+  it('accepts "confirmado" as explicit free-text confirmation', () => {
+    const result = evaluateConfirmation({
+      draft,
+      freeText: 'confirmado',
+    });
+    expect(result.kind).toBe('confirm');
+    expect(result).toMatchObject({ rule: 'confirm.explicit_text' });
+  });
+
+  it('accepts "confirmado!" after punctuation strip', () => {
+    const result = evaluateConfirmation({
+      draft,
+      freeText: 'Confirmado!',
+    });
+    expect(result.kind).toBe('confirm');
+  });
+
   it('asks again for weak affirmations like ok', () => {
     const result = evaluateConfirmation({
       draft,

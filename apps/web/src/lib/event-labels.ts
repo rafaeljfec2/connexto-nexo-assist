@@ -49,6 +49,16 @@ export function humanizeEvent(event: EventLabelInput): string {
     return 'preparou transferência';
   }
 
+  if (rule.startsWith('confirm.') || result === 'draft_confirmed' || result === 'draft_rejected') {
+    if (result === 'draft_rejected' || rule.includes('reject')) {
+      return 'cancelou o rascunho';
+    }
+    if (result === 'ask_again' || rule.includes('weak') || rule.includes('unrecognized')) {
+      return 'pediu confirmação explícita';
+    }
+    return 'confirmou o rascunho';
+  }
+
   const fallback = event.tool ?? event.rule ?? event.intent ?? event.result ?? '';
   return fallback.replaceAll('_', ' ');
 }

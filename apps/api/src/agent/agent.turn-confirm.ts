@@ -85,7 +85,8 @@ export async function tryHandleDraftConfirmation(input: {
   if (
     confirmation.kind === 'ask_again' &&
     input.pendingDraft &&
-    confirmation.rule === 'confirm.weak_affirmation'
+    (confirmation.rule === 'confirm.weak_affirmation' ||
+      confirmation.rule === 'confirm.empty')
   ) {
     events.push({
       intent: null,
@@ -98,7 +99,35 @@ export async function tryHandleDraftConfirmation(input: {
       conversationId: input.conversationId,
       executionId: input.executionId,
       agentContent:
-        'Para confirmar o rascunho, responda "confirmo" ou use o botão de confirmação da versão exibida.',
+        'Para confirmar o rascunho, responda "confirmo" / "confirmado" ou use o botão de confirmação da versão exibida.',
+      events,
+      draft: input.pendingDraft,
+      status: 'with_agent',
+      summary: null,
+    });
+    return true;
+  }
+
+  // Short confirmation-like phrases that still did not match (typos, extra words)
+  // must not fall through to the LLM — that re-calls prepare_draft and loops.
+  if (
+    confirmation.kind === 'ask_again' &&
+    input.pendingDraft &&
+    confirmation.rule === 'confirm.unrecognized' &&
+    looksLikeFailedConfirmation(input.content)
+  ) {
+    events.push({
+      intent: null,
+      tool: null,
+      rule: confirmation.rule,
+      result: 'ask_again',
+      justification: confirmation.reason,
+    });
+    await input.persistAgentOutcome({
+      conversationId: input.conversationId,
+      executionId: input.executionId,
+      agentContent:
+        'Não entendi a confirmação. Responda "confirmo" / "confirmado" ou use o botão Confirmar do rascunho.',
       events,
       draft: input.pendingDraft,
       status: 'with_agent',
@@ -108,4 +137,17 @@ export async function tryHandleDraftConfirmation(input: {
   }
 
   return false;
+}
+
+function looksLikeFailedConfirmation(content: string): boolean {
+  const text = content
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '');
+  if (text.length === 0 || text.length > 48) {
+    return false;
+  }
+  // Typos / near-misses around confirmation — do not fall through to prepare_draft.
+  return /\bconfirm/.test(text) || /\bpode criar\b/.test(text);
 }

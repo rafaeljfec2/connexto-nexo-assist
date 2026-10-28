@@ -12,12 +12,20 @@ export type ConfirmationResult =
 
 const EXPLICIT_CONFIRM = new Set([
   'confirmo',
+  'confirmado',
+  'confirmada',
+  'confirmei',
   'pode criar',
   'pode atualizar',
   'pode reabrir',
   'confirmar',
   'sim, confirmo',
   'sim confirmo',
+  'sim, confirmado',
+  'sim confirmado',
+  'eu confirmo',
+  'esta confirmado',
+  'esta confirmada',
 ]);
 
 const EXPLICIT_REJECT = new Set([
@@ -37,6 +45,10 @@ const WEAK_AFFIRMATION = new Set([
   'sim',
   'tudo bem',
 ]);
+
+/** Past-participle / stem forms people type instead of "confirmo". */
+const EXPLICIT_CONFIRM_RE =
+  /^(sim[, ]+)?(eu )?confirm(o|ar|ado|ada|ei)$/;
 
 /**
  * Confirms a draft only when the exact version is referenced (button)
@@ -93,7 +105,7 @@ export function evaluateConfirmation(input: {
     };
   }
 
-  if (EXPLICIT_CONFIRM.has(text)) {
+  if (EXPLICIT_CONFIRM.has(text) || EXPLICIT_CONFIRM_RE.test(text)) {
     return { kind: 'confirm', rule: 'confirm.explicit_text' };
   }
 
@@ -122,5 +134,7 @@ function normalize(value: string): string {
     .toLowerCase()
     .normalize('NFD')
     .replace(/\p{M}/gu, '')
-    .replace(/\s+/g, ' ');
+    .replace(/[!?.,;:]+$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }

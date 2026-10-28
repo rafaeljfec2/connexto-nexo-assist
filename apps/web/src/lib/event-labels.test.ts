@@ -59,4 +59,15 @@ describe('humanizeEvent (Consulta chips)', () => {
       }),
     ).toBe('consultou seus chamados');
   });
+
+  it('humanizes confirm.button_confirm instead of raw rule', () => {
+    expect(
+      humanizeEvent({
+        tool: null,
+        rule: 'confirm.button_confirm',
+        result: 'draft_confirmed',
+        justification: 'Employee confirmed',
+      }),
+    ).toBe('confirmou o rascunho');
+  });
 });

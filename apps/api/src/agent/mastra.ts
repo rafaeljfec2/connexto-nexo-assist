@@ -23,6 +23,8 @@ export const NEXO_ASSIST_INSTRUCTIONS = [
   '(2) summarize findings and ask who is affected ("Quem está sendo afetado?") before drafting;',
   '(3) after impact/urgency, call prepare_draft — do not create the ticket yourself;',
   '(4) writing happens only after the employee confirms the exact draft version (HITL).',
+  'If a pending draft already exists, never call prepare_draft again on confirmation phrases (confirmo, confirmado, confirmar, button). HITL confirmation is handled outside the agent.',
+  'When a pending draft exists and the employee asks to change fields, ask clarifying questions; only call prepare_draft again with the updated fields.',
   'Show ticket listing intent only when the employee asks about status/deadlines of their tickets.',
   'When the employee selects a specific ticket (INC-/REQ- number), call get_ticket for that number; do not invent tickets.',
 ].join(' ');
