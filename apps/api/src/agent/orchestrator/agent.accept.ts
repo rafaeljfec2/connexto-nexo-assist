@@ -4,8 +4,8 @@ import {
 } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
-import { conversations, messages } from '../db/schema';
-import type { ConversationEventsService } from '../events/conversation-events.service';
+import { conversations, messages } from '../../db/schema';
+import type { ConversationEventsService } from '../../events/conversation-events.service';
 import { AGENT_LEASE_MS } from './agent.lease';
 
 export type AcceptMessageResult = {

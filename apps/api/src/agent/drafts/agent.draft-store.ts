@@ -9,14 +9,14 @@ import {
 } from '@nexo-assist/domain';
 import type { TicketCategory, TicketPriority, TicketType } from '@nexo-assist/contracts';
 import { randomUUID } from 'node:crypto';
-import type { AppDatabase } from '../db/client';
-import { drafts, executionEvents, messages, operations } from '../db/schema';
-import type { ConversationEventsService } from '../events/conversation-events.service';
-import { logDraftConfirm } from '../observability/agent-trace.log';
-import type { PolicyEngine } from './policy.engine';
-import { toDuplicateCandidates } from './policy.engine';
-import type { TicketGateway } from '../tickets/ticket.gateway';
-import type { TurnEvent } from './agent.types';
+import type { AppDatabase } from '../../db/client';
+import { drafts, executionEvents, messages, operations } from '../../db/schema';
+import type { ConversationEventsService } from '../../events/conversation-events.service';
+import { logDraftConfirm } from '../../observability/agent-trace.log';
+import type { PolicyEngine } from '../policy/policy.engine';
+import { toDuplicateCandidates } from '../policy/policy.engine';
+import type { TicketGateway } from '../../tickets/ticket.gateway';
+import type { TurnEvent } from '../agent.types';
 
 export type DraftRow = typeof drafts.$inferSelect;
 

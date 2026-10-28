@@ -1,15 +1,15 @@
 import { and, eq } from 'drizzle-orm';
 import { deriveConfidence } from '@nexo-assist/domain';
-import { conversations, executionEvents, messages } from '../db/schema';
-import type { ConversationEventsService } from '../events/conversation-events.service';
+import { conversations, executionEvents, messages } from '../../db/schema';
+import type { ConversationEventsService } from '../../events/conversation-events.service';
 import {
   logBusinessEvent,
   logTurnCompleted,
   logTurnFailed,
   logTurnFencedDiscard,
-} from '../observability/agent-trace.log';
-import type { DraftRow } from './agent.draft-store';
-import type { TurnEvent } from './agent.types';
+} from '../../observability/agent-trace.log';
+import type { DraftRow } from '../drafts/agent.draft-store';
+import type { TurnEvent } from '../agent.types';
 
 export async function persistAgentOutcome(
   eventsService: ConversationEventsService,

@@ -1,4 +1,4 @@
-import type { TurnEvent } from './agent.types';
+import type { TurnEvent } from '../agent.types';
 
 export type HandoffReason = 'explicit' | 'critical' | 'unsure_accepted';
 

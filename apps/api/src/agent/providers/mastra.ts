@@ -3,19 +3,19 @@ import type { CoreMessage } from '@mastra/core/llm';
 import { createTool } from '@mastra/core/tools';
 import { isTicketOverdue, MEDIUM_SLA_BUSINESS_DAYS } from '@nexo-assist/domain';
 import { z } from 'zod';
-import type { AppDatabase } from '../db/client';
-import { MAX_TOOL_STEPS } from '../conversations/usage.guard';
-import type { TicketGateway } from '../tickets/ticket.gateway';
-import type { PolicyEngine } from './policy.engine';
+import type { AppDatabase } from '../../db/client';
+import { MAX_TOOL_STEPS } from '../../conversations/usage.guard';
+import type { TicketGateway } from '../../tickets/ticket.gateway';
+import type { PolicyEngine } from '../policy/policy.engine';
 import {
   asTicketInspectResult,
   buildConsultaDetailReply,
   resolveListOnlyAssistantText,
   runAgentTool,
-} from './agent.tools';
-import { handlePrepareDraft, type DraftRow } from './agent.draft-store';
+} from '../tools/agent.tools';
+import { handlePrepareDraft, type DraftRow } from '../drafts/agent.draft-store';
 import type { LlmMessage } from './llm.provider';
-import type { TurnEvent } from './agent.types';
+import type { TurnEvent } from '../agent.types';
 
 export const NEXO_ASSIST_INSTRUCTIONS = [
   'You are Nexo Assist, an IT service desk agent for employees.',

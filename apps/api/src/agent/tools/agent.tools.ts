@@ -3,12 +3,12 @@ import {
   buildTicketListIntro,
   MEDIUM_SLA_BUSINESS_DAYS,
 } from '@nexo-assist/domain';
-import type { AppDatabase } from '../db/client';
-import { helpArticles } from '../db/schema';
-import type { TicketGateway } from '../tickets/ticket.gateway';
-import type { LlmToolDefinition } from './llm.provider';
-import { parseAffectedScope } from './impact-answer';
-import type { TurnEvent } from './agent.types';
+import type { AppDatabase } from '../../db/client';
+import { helpArticles } from '../../db/schema';
+import type { TicketGateway } from '../../tickets/ticket.gateway';
+import type { LlmToolDefinition } from '../providers/llm.provider';
+import { parseAffectedScope } from '../intents/impact-answer';
+import type { TurnEvent } from '../agent.types';
 
 export const AGENT_TOOLS: LlmToolDefinition[] = [
   {

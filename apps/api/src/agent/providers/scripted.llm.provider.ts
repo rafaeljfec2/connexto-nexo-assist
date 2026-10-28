@@ -5,7 +5,7 @@ import {
 import {
   lastAssistantAskedImpact,
   parseAffectedScope,
-} from './impact-answer';
+} from '../intents/impact-answer';
 import type {
   LlmMessage,
   LlmProvider,
@@ -15,7 +15,7 @@ import type {
 import {
   requestsAnalystTransfer,
   TRANSFER_CONFIRMATION_TEXT,
-} from './transfer-intent';
+} from '../intents/transfer-intent';
 
 function lastUserContent(messages: readonly LlmMessage[]): string {
   return [...messages].reverse().find((m) => m.role === 'user')?.content ?? '';

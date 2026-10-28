@@ -1,5 +1,5 @@
 import { and, desc, eq } from 'drizzle-orm';
-import type { AgentOrchestrator } from '../../src/agent/agent.orchestrator';
+import type { AgentOrchestrator } from '../../src/agent/orchestrator/agent.orchestrator';
 import { createDb } from '../../src/db/client';
 import { drafts, executionEvents, messages } from '../../src/db/schema';
 

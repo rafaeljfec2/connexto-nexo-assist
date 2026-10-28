@@ -6,25 +6,25 @@ import {
   isTicketOverdue,
   MEDIUM_SLA_BUSINESS_DAYS,
 } from '@nexo-assist/domain';
-import type { AppDatabase } from '../db/client';
-import { conversations, executionEvents, messages } from '../db/schema';
+import type { AppDatabase } from '../../db/client';
+import { conversations, executionEvents, messages } from '../../db/schema';
 import {
   MAX_CONTEXT_MESSAGES,
   MAX_OUTPUT_TOKENS,
   MAX_TOOL_STEPS,
   PROVIDER_TIMEOUT_MS,
-} from '../conversations/usage.guard';
-import type { TicketGateway } from '../tickets/ticket.gateway';
-import type { PolicyEngine } from './policy.engine';
+} from '../../conversations/usage.guard';
+import type { TicketGateway } from '../../tickets/ticket.gateway';
+import type { PolicyEngine } from '../policy/policy.engine';
 import {
   ScriptedLlmProvider,
   type LlmMessage,
   type LlmProvider,
-} from './llm.provider';
+} from '../providers/llm.provider';
 import {
   requestsAnalystTransfer,
   TRANSFER_CONFIRMATION_TEXT,
-} from './transfer-intent';
+} from '../intents/transfer-intent';
 import {
   acceptsUnsureOffer,
   buildHandoffSummary,
@@ -32,25 +32,25 @@ import {
   resolveHandoffReason,
   shouldOfferUnsureHandoff,
   UNSURE_OFFER_TEXT,
-} from './handoff-summary';
-import { getPendingDraft, handlePrepareDraft, type DraftRow } from './agent.draft-store';
+} from '../intents/handoff-summary';
+import { getPendingDraft, handlePrepareDraft, type DraftRow } from '../drafts/agent.draft-store';
 import {
   AGENT_TOOLS,
   asTicketInspectResult,
   buildConsultaDetailReply,
   resolveListOnlyAssistantText,
   runAgentTool,
-} from './agent.tools';
-import { NEXO_ASSIST_INSTRUCTIONS, runMastraTurn } from './mastra';
+} from '../tools/agent.tools';
+import { NEXO_ASSIST_INSTRUCTIONS, runMastraTurn } from '../providers/mastra';
 import {
   tryHandleComplementStart,
   tryHandleDraftConfirmation,
   tryHandleImpactAnswer,
 } from './agent.turn-confirm';
-import { lastAssistantAskedImpact, parseAffectedScope } from './impact-answer';
-import type { FailExecution, PersistAgentOutcome, TurnEvent } from './agent.types';
+import { lastAssistantAskedImpact, parseAffectedScope } from '../intents/impact-answer';
+import type { FailExecution, PersistAgentOutcome, TurnEvent } from '../agent.types';
 
-export type { TurnEvent, PersistAgentOutcome, FailExecution } from './agent.types';
+export type { TurnEvent, PersistAgentOutcome, FailExecution } from '../agent.types';
 
 const logger = new Logger('AgentTurnRunner');
 

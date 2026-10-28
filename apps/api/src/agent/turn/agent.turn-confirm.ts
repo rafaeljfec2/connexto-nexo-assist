@@ -3,25 +3,25 @@ import {
   inferPrioritySignalsFromText,
   evaluateConfirmation,
 } from '@nexo-assist/domain';
-import type { AppDatabase } from '../db/client';
-import { drafts } from '../db/schema';
-import type { TicketGateway } from '../tickets/ticket.gateway';
-import type { PolicyEngine } from './policy.engine';
+import type { AppDatabase } from '../../db/client';
+import { drafts } from '../../db/schema';
+import type { TicketGateway } from '../../tickets/ticket.gateway';
+import type { PolicyEngine } from '../policy/policy.engine';
 import {
   applyDraft,
   formatDraftConfirmFeedback,
   handlePrepareDraft,
   type DraftRow,
-} from './agent.draft-store';
+} from '../drafts/agent.draft-store';
 import {
   findPriorProblemReport,
   inferCategoryFromText,
   lastAssistantAskedImpact,
   parseAffectedScope,
   titleFromProblemReport,
-} from './impact-answer';
-import { UNSURE_OFFER_TEXT } from './handoff-summary';
-import type { FailExecution, PersistAgentOutcome, TurnEvent } from './agent.types';
+} from '../intents/impact-answer';
+import { UNSURE_OFFER_TEXT } from '../intents/handoff-summary';
+import type { FailExecution, PersistAgentOutcome, TurnEvent } from '../agent.types';
 export async function tryHandleDraftConfirmation(input: {
   readonly db: AppDatabase;
   readonly tickets: TicketGateway;

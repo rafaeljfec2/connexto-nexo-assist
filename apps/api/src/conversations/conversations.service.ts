@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import { createDb, type AppDatabase } from '../db/client';
 import { conversations, drafts, executionEvents, messages } from '../db/schema';
-import { AgentOrchestrator } from '../agent/agent.orchestrator';
+import { AgentOrchestrator } from '../agent/orchestrator/agent.orchestrator';
 import { UsageGuard } from './usage.guard';
 
 const OPEN_STATUSES = ['with_analyst', 'waiting_analyst', 'with_agent'] as const;

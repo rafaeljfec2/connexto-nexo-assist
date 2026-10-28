@@ -8,24 +8,24 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
-import { createDb, type AppDatabase } from '../db/client';
-import { conversations, messages } from '../db/schema';
-import { ConversationEventsService } from '../events/conversation-events.service';
-import { TicketGateway } from '../tickets/ticket.gateway';
-import { UsageGuard } from '../conversations/usage.guard';
-import { PolicyEngine } from './policy.engine';
-import { createLlmProvider, type LlmProvider } from './llm.provider';
+import { createDb, type AppDatabase } from '../../db/client';
+import { conversations, messages } from '../../db/schema';
+import { ConversationEventsService } from '../../events/conversation-events.service';
+import { TicketGateway } from '../../tickets/ticket.gateway';
+import { UsageGuard } from '../../conversations/usage.guard';
+import { PolicyEngine } from '../policy/policy.engine';
+import { createLlmProvider, type LlmProvider } from '../providers/llm.provider';
 import { AGENT_INCOMPLETE_GRACE_MS, AGENT_LEASE_MS } from './agent.lease';
 import {
   acceptAgentMessage,
   acceptHumanMessage,
   type AcceptMessageResult,
 } from './agent.accept';
-import { logTurnStarted } from '../observability/agent-trace.log';
-import { confirmDraftAction, type DraftRow } from './agent.draft-store';
+import { logTurnStarted } from '../../observability/agent-trace.log';
+import { confirmDraftAction, type DraftRow } from '../drafts/agent.draft-store';
 import { failExecution, persistAgentOutcome } from './agent.persist';
-import { runAgentTurn } from './agent.turn-runner';
-import type { TurnEvent } from './agent.types';
+import { runAgentTurn } from '../turn/agent.turn-runner';
+import type { TurnEvent } from '../agent.types';
 
 export { AGENT_LEASE_MS } from './agent.lease';
 export type { AcceptMessageResult } from './agent.accept';

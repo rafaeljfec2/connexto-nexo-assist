@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { ZodError } from 'zod';
-import { resolveModelId } from './agent/mastra';
+import { resolveModelId } from './agent/providers/mastra';
 import { EnvConfig } from './config/env.config';
 import { runMigrations } from './db/migrate';
 import { AppModule } from './app.module';

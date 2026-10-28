@@ -1,4 +1,4 @@
-import type { DraftRow } from './agent.draft-store';
+import type { DraftRow } from './drafts/agent.draft-store';
 
 export type TurnEvent = {
   readonly intent: string | null;
