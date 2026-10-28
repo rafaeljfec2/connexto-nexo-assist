@@ -1,12 +1,14 @@
 import { UnprocessableEntityException } from '@nestjs/common';
 import { and, desc, eq } from 'drizzle-orm';
-import type { AppDatabase } from '../db/client';
-import { drafts, operations } from '../db/schema';
-import type { PolicyEngine } from './policy.engine';
-import type { TicketGateway } from '../tickets/ticket.gateway';
-import { evaluateConfirmation } from '@nexo-assist/domain';
+import { computeDueAt, evaluateConfirmation } from '@nexo-assist/domain';
+import type { TicketPriority } from '@nexo-assist/contracts';
 import { randomUUID } from 'node:crypto';
-import { executionEvents } from '../db/schema';
+import type { AppDatabase } from '../db/client';
+import { drafts, executionEvents, operations } from '../db/schema';
+import type { PolicyEngine } from './policy.engine';
+import { toDuplicateCandidates } from './policy.engine';
+import type { TicketGateway } from '../tickets/ticket.gateway';
+import type { TurnEvent } from './agent.types';
 
 export type DraftRow = typeof drafts.$inferSelect;
 
@@ -175,4 +177,79 @@ export async function confirmDraftAction(
   throw new UnprocessableEntityException(
     'reason' in decision ? decision.reason : 'Confirmação inválida.',
   );
+}
+
+export async function handlePrepareDraft(input: {
+  readonly db: AppDatabase;
+  readonly policy: PolicyEngine;
+  readonly tickets: TicketGateway;
+  readonly conversationId: string;
+  readonly employeeId: string;
+  readonly args: Record<string, unknown>;
+  readonly events: TurnEvent[];
+}): Promise<{
+  preparedDraft: DraftRow | null;
+  assistantText: string | null;
+  transferRequested: boolean;
+}> {
+  const priority = input.policy.decidePriorityFromDraft(input.args);
+  const draftPayload: Record<string, unknown> = { ...input.args };
+  if (priority.priority) {
+    const dueAt = computeDueAt(priority.priority as TicketPriority, new Date());
+    draftPayload['priority'] = priority.priority;
+    draftPayload['dueAt'] = dueAt.toISOString();
+  }
+  const preparedDraft = await saveDraft(input.db, input.conversationId, draftPayload);
+  input.events.push({
+    intent: 'create',
+    tool: null,
+    rule: priority.rule,
+    result: priority.needsClarification ? 'needs_clarification' : String(priority.priority),
+    justification: priority.clarificationQuestion ?? 'Priority decided by domain policy.',
+  });
+  if (priority.priority) {
+    input.events.push({
+      intent: 'create',
+      tool: null,
+      rule: 'sla.compute_due',
+      result: String(draftPayload['dueAt'] ?? ''),
+      justification: `SLA due date computed for priority ${priority.priority}.`,
+    });
+  }
+
+  let assistantText: string | null = null;
+  const transferRequested = priority.priority === 'critical';
+  if (priority.needsClarification) {
+    assistantText =
+      priority.clarificationQuestion ??
+      'Preciso de mais informações para definir a prioridade.';
+  } else {
+    const open = await input.tickets.listOpenForDuplicity(input.employeeId);
+    const dup = input.policy.detectDuplicates(
+      {
+        category: (input.args['category'] as never) ?? null,
+        title: String(input.args['title'] ?? ''),
+        description: String(input.args['description'] ?? ''),
+        errorCode: (input.args['errorCode'] as string | null) ?? null,
+      },
+      toDuplicateCandidates(open),
+    );
+    input.events.push({
+      intent: 'create',
+      tool: null,
+      rule: dup.rule,
+      result: dup.match,
+      justification: `Duplicity score ${dup.score}`,
+    });
+    if (dup.match === 'strong' || dup.match === 'multiple' || dup.match === 'ambiguous') {
+      assistantText = `Encontrei possível duplicidade (${dup.match}). Candidatos: ${dup.candidates
+        .map((c) => c.number)
+        .join(', ')}. Confirme se deseja complementar ou criar mesmo assim.`;
+    } else {
+      const versionLabel = preparedDraft ? preparedDraft.version : '?';
+      assistantText = `Preparei o rascunho versão ${versionLabel} com prioridade ${priority.priority}. Confirme para criar.`;
+    }
+  }
+
+  return { preparedDraft, assistantText, transferRequested };
 }

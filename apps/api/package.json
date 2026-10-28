@@ -14,11 +14,12 @@
     "db:seed": "tsx src/db/seed.ts"
   },
   "dependencies": {
-    "@nexo-assist/contracts": "workspace:*",
-    "@nexo-assist/domain": "workspace:*",
+    "@mastra/core": "^1.79.0",
     "@nestjs/common": "^11.1.3",
     "@nestjs/core": "^11.1.3",
     "@nestjs/platform-express": "^11.1.3",
+    "@nexo-assist/contracts": "workspace:*",
+    "@nexo-assist/domain": "workspace:*",
     "cookie-parser": "^1.4.7",
     "drizzle-orm": "^0.44.2",
     "postgres": "^3.4.7",
