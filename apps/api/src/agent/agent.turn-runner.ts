@@ -1,11 +1,13 @@
 import { Logger } from '@nestjs/common';
 import { desc, eq } from 'drizzle-orm';
 import {
+  deriveConfidence,
+  detectOutOfItScope,
   isTicketOverdue,
   MEDIUM_SLA_BUSINESS_DAYS,
 } from '@nexo-assist/domain';
 import type { AppDatabase } from '../db/client';
-import { conversations, messages } from '../db/schema';
+import { conversations, executionEvents, messages } from '../db/schema';
 import {
   MAX_CONTEXT_MESSAGES,
   MAX_OUTPUT_TOKENS,
@@ -23,6 +25,14 @@ import {
   requestsAnalystTransfer,
   TRANSFER_CONFIRMATION_TEXT,
 } from './transfer-intent';
+import {
+  acceptsUnsureOffer,
+  buildHandoffSummary,
+  hasOpenAnalystOffer,
+  resolveHandoffReason,
+  shouldOfferUnsureHandoff,
+  UNSURE_OFFER_TEXT,
+} from './handoff-summary';
 import { getPendingDraft, handlePrepareDraft, type DraftRow } from './agent.draft-store';
 import {
   AGENT_TOOLS,
@@ -37,6 +47,7 @@ import {
   tryHandleDraftConfirmation,
   tryHandleImpactAnswer,
 } from './agent.turn-confirm';
+import { lastAssistantAskedImpact, parseAffectedScope } from './impact-answer';
 import type { FailExecution, PersistAgentOutcome, TurnEvent } from './agent.types';
 
 export type { TurnEvent, PersistAgentOutcome, FailExecution } from './agent.types';
@@ -271,12 +282,93 @@ export async function runAgentTurn(input: {
       return;
     }
 
-    const history = await input.db
+    const historyNewestFirst = await input.db
       .select()
       .from(messages)
       .where(eq(messages.conversationId, conversation.id))
       .orderBy(desc(messages.createdAt))
       .limit(MAX_CONTEXT_MESSAGES);
+    const historyOldestFirst = [...historyNewestFirst].reverse();
+
+    const explicitAsk = requestsAnalystTransfer(input.content);
+    const acceptedOffer =
+      hasOpenAnalystOffer(historyNewestFirst) && acceptsUnsureOffer(input.content);
+
+    if ((explicitAsk || acceptedOffer) && !pendingDraft) {
+      const priorEvents = await input.db
+        .select()
+        .from(executionEvents)
+        .where(eq(executionEvents.conversationId, conversation.id))
+        .orderBy(desc(executionEvents.createdAt))
+        .limit(20);
+      const reason = resolveHandoffReason({
+        transferRequested: false,
+        explicitAsk,
+        acceptedOffer,
+      });
+      events.push({
+        intent: 'talk_to_analyst',
+        tool: null,
+        rule: 'transfer.conversation',
+        result: 'waiting_analyst',
+        justification:
+          reason === 'unsure_accepted'
+            ? 'Employee accepted analyst offer after low-confidence stall.'
+            : 'Conversation transferred to analyst queue.',
+      });
+      await input.persistAgentOutcome({
+        conversationId: input.conversationId,
+        executionId: input.executionId,
+        agentContent: TRANSFER_CONFIRMATION_TEXT,
+        events,
+        draft: null,
+        status: 'waiting_analyst',
+        summary: buildHandoffSummary({
+          employeeContent: input.content,
+          events,
+          priorEvents: priorEvents.map((row) => ({
+            intent: row.intent,
+            tool: row.tool,
+            rule: row.rule,
+            result: row.result,
+            justification: row.justification,
+            confidence:
+              row.confidence === 'high' ||
+              row.confidence === 'medium' ||
+              row.confidence === 'low'
+                ? row.confidence
+                : null,
+          })),
+          recentMessages: historyOldestFirst,
+          reason,
+        }),
+      });
+      return;
+    }
+
+    const outOfScope = detectOutOfItScope(input.content);
+    if (outOfScope.outOfScope && !pendingDraft) {
+      events.push({
+        intent: 'out_of_it',
+        tool: null,
+        rule: `scope.out_of_it.${outOfScope.area ?? 'unknown'}`,
+        result: 'redirected',
+        justification: 'Topic is outside IT service desk scope.',
+        confidence: 'high',
+      });
+      await input.persistAgentOutcome({
+        conversationId: input.conversationId,
+        executionId: input.executionId,
+        agentContent:
+          outOfScope.redirectMessage ??
+          'Esse assunto fica fora do escopo de TI. Procure a área responsável pelos canais internos.',
+        events,
+        draft: null,
+        status: 'with_agent',
+        summary: null,
+      });
+      return;
+    }
 
     const handledImpact = await tryHandleImpactAnswer({
       db: input.db,
@@ -287,7 +379,7 @@ export async function runAgentTurn(input: {
       content: input.content,
       executionId: input.executionId,
       pendingDraft,
-      recentMessages: history,
+      recentMessages: historyNewestFirst,
       persistAgentOutcome: input.persistAgentOutcome,
     });
     if (handledImpact) {
@@ -296,7 +388,7 @@ export async function runAgentTurn(input: {
 
     const llmMessages: LlmMessage[] = [
       { role: 'system', content: NEXO_ASSIST_INSTRUCTIONS },
-      ...history.reverse().map((m) => ({
+      ...historyOldestFirst.map((m) => ({
         role:
           m.role === 'employee'
             ? ('user' as const)
@@ -345,22 +437,68 @@ export async function runAgentTurn(input: {
     const preparedDraft = loopResult.preparedDraft;
     const transferRequested = loopResult.transferRequested;
 
-    const employeeAskedTransfer = requestsAnalystTransfer(input.content);
-    if (employeeAskedTransfer || transferRequested) {
-      transferToWaiting = true;
+    if (
+      !preparedDraft &&
+      !transferRequested &&
+      parseAffectedScope(input.content) === 'unknown' &&
+      lastAssistantAskedImpact(historyNewestFirst)
+    ) {
       events.push({
-        intent: transferRequested && !employeeAskedTransfer ? 'critical' : 'talk_to_analyst',
+        intent: 'ambiguous',
+        tool: null,
+        rule: 'priority.ask_impact',
+        result: 'needs_clarification',
+        justification: 'Employee could not identify who is affected.',
+      });
+    }
+
+    if (transferRequested) {
+      transferToWaiting = true;
+      const reason = resolveHandoffReason({
+        transferRequested: true,
+        explicitAsk: false,
+        acceptedOffer: false,
+      });
+      events.push({
+        intent: reason === 'critical' ? 'critical' : 'talk_to_analyst',
         tool: null,
         rule: 'transfer.conversation',
         result: 'waiting_analyst',
         justification: 'Conversation transferred to analyst queue.',
       });
-      // Always overwrite LLM text — models must not invent "I cannot transfer".
-      assistantText = employeeAskedTransfer
-        ? TRANSFER_CONFIRMATION_TEXT
-        : assistantText ||
-          'Transferi você para a fila de analistas. O agente fica pausado até o atendimento humano.';
+      assistantText =
+        assistantText ||
+        'Transferi você para a fila de analistas. O agente fica pausado até o atendimento humano.';
+    } else {
+      const confidence = deriveConfidence(events);
+      if (
+        shouldOfferUnsureHandoff({
+          confidence,
+          transferAlready: false,
+          hasPendingDraft: Boolean(preparedDraft),
+          events,
+        })
+      ) {
+        events.push({
+          intent: 'talk_to_analyst',
+          tool: null,
+          rule: 'transfer.offer_unsure',
+          result: 'offer',
+          justification: 'Low confidence stall — offering analyst handoff.',
+          confidence: 'low',
+        });
+        assistantText = `${assistantText ? `${assistantText.trim()}\n\n` : ''}${UNSURE_OFFER_TEXT}`;
+      }
     }
+
+    const summary = transferToWaiting
+      ? buildHandoffSummary({
+          employeeContent: input.content,
+          events,
+          recentMessages: historyOldestFirst,
+          reason: 'critical',
+        })
+      : null;
 
     await input.persistAgentOutcome({
       conversationId: input.conversationId,
@@ -369,7 +507,7 @@ export async function runAgentTurn(input: {
       events,
       draft: preparedDraft,
       status: transferToWaiting ? 'waiting_analyst' : 'with_agent',
-      summary: transferToWaiting ? input.content.slice(0, 280) : null,
+      summary,
     });
   } catch (err) {
     logger.error(`Execution ${input.executionId} failed: ${String(err)}`);

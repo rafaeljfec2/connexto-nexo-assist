@@ -20,6 +20,7 @@ import {
   parseAffectedScope,
   titleFromProblemReport,
 } from './impact-answer';
+import { UNSURE_OFFER_TEXT } from './handoff-summary';
 import type { FailExecution, PersistAgentOutcome, TurnEvent } from './agent.types';
 export async function tryHandleDraftConfirmation(input: {
   readonly db: AppDatabase;
@@ -218,12 +219,27 @@ export async function tryHandleImpactAnswer(input: {
     events,
   });
 
+  let agentContent =
+    outcome.assistantText ??
+    'Preciso de mais informações para montar o rascunho. Pode detalhar o impacto?';
+
+  // Unknown / incomplete impact → explicit analyst offer (AA-5), never auto-transfer.
+  if (!outcome.preparedDraft && scope === 'unknown') {
+    events.push({
+      intent: 'talk_to_analyst',
+      tool: null,
+      rule: 'transfer.offer_unsure',
+      result: 'offer',
+      justification: 'Low confidence after unknown affected scope — offering analyst.',
+      confidence: 'low',
+    });
+    agentContent = `${agentContent.trim()}\n\n${UNSURE_OFFER_TEXT}`;
+  }
+
   await input.persistAgentOutcome({
     conversationId: input.conversationId,
     executionId: input.executionId,
-    agentContent:
-      outcome.assistantText ??
-      'Preciso de mais informações para montar o rascunho. Pode detalhar o impacto?',
+    agentContent,
     events,
     draft: outcome.preparedDraft,
     status: 'with_agent',

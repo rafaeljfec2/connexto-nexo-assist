@@ -21,4 +21,10 @@ describe('requestsAnalystTransfer', () => {
     expect(requestsAnalystTransfer('Posso falar com você sobre VPN?')).toBe(false);
     expect(requestsAnalystTransfer('status do chamado')).toBe(false);
   });
+
+  it('does not treat offer-acceptance phrases as explicit transfer', () => {
+    expect(requestsAnalystTransfer('Sim, chame um analista')).toBe(false);
+    expect(requestsAnalystTransfer('chame um analista')).toBe(false);
+    expect(requestsAnalystTransfer('sim, por favor')).toBe(false);
+  });
 });
