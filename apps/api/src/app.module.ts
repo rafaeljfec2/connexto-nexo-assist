@@ -12,6 +12,7 @@ import { TicketsController } from './tickets/tickets.controller';
 import { ConsoleController } from './console/console.controller';
 import { ConsoleService } from './console/console.service';
 import { HealthController } from './health.controller';
+import { ConversationEventsService } from './events/conversation-events.service';
 
 @Module({
   controllers: [
@@ -31,7 +32,8 @@ import { HealthController } from './health.controller';
     PolicyEngine,
     TicketGateway,
     ConsoleService,
+    ConversationEventsService,
   ],
-  exports: [AuthService, TicketGateway],
+  exports: [AuthService, TicketGateway, ConversationEventsService],
 })
 export class AppModule {}

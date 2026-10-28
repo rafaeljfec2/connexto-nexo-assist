@@ -92,7 +92,7 @@ export class ConversationsService {
     };
   }
 
-  async sendMessage(employeeId: string, content: string) {
+  async sendMessage(employeeId: string, content: string, clientMessageId?: string) {
     this.usage.assertMessageSize(content);
     const current = await this.getOrCreateCurrent(employeeId);
     if (!current.conversation) {
@@ -102,6 +102,7 @@ export class ConversationsService {
       employeeId,
       conversationId: current.conversation.id,
       content,
+      clientMessageId,
     });
   }
 

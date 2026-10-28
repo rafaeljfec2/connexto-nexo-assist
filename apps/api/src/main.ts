@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import {
   Catch,
+  Logger,
   type ExceptionFilter,
   type ArgumentsHost,
   HttpException,
@@ -9,9 +10,12 @@ import {
 import type { Response } from 'express';
 import { ZodError } from 'zod';
 import { EnvConfig } from './config/env.config';
+import { runMigrations } from './db/migrate';
 import { AppModule } from './app.module';
 
 EnvConfig.getInstance().load();
+
+const bootstrapLogger = new Logger('Bootstrap');
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const cookieParser = require('cookie-parser') as () => (
@@ -22,8 +26,18 @@ const cookieParser = require('cookie-parser') as () => (
 
 @Catch()
 class SafeExceptionFilter implements ExceptionFilter {
+  private readonly logger = new Logger(SafeExceptionFilter.name);
+
   catch(exception: unknown, host: ArgumentsHost): void {
     const res = host.switchToHttp().getResponse<Response>();
+    if (res.headersSent || res.writableEnded) {
+      this.logger.warn(
+        `Response already committed; skipping JSON error body (${
+          exception instanceof Error ? exception.message : 'Unexpected error'
+        })`,
+      );
+      return;
+    }
     if (exception instanceof ZodError) {
       res.status(400).json({
         message: 'Invalid request',
@@ -44,15 +58,20 @@ class SafeExceptionFilter implements ExceptionFilter {
       });
       return;
     }
-    // eslint-disable-next-line no-console
-    console.error(exception);
+    this.logger.error(
+      exception instanceof Error ? exception.message : 'Unexpected error',
+      exception instanceof Error ? exception.stack : undefined,
+    );
     res.status(500).json({ message: 'Unexpected error' });
   }
 }
 
 async function bootstrap(): Promise<void> {
   const env = EnvConfig.getInstance().load().snapshot();
+  bootstrapLogger.log('Running database migrations...');
+  await runMigrations(env.databaseUrl);
   const app = await NestFactory.create(AppModule, { logger: ['error', 'warn', 'log'] });
+  app.enableShutdownHooks();
   app.use(cookieParser());
   app.enableCors({
     origin: env.corsOrigin,
@@ -61,12 +80,13 @@ async function bootstrap(): Promise<void> {
   app.useGlobalFilters(new SafeExceptionFilter());
 
   await app.listen(env.apiPort);
-  // eslint-disable-next-line no-console
-  console.log(`API listening on http://localhost:${env.apiPort}`);
+  bootstrapLogger.log(`API listening on http://localhost:${env.apiPort}`);
 }
 
 bootstrap().catch((err: unknown) => {
-  // eslint-disable-next-line no-console
-  console.error(err);
+  bootstrapLogger.error(
+    err instanceof Error ? err.message : 'Bootstrap failed',
+    err instanceof Error ? err.stack : undefined,
+  );
   process.exit(1);
 });
